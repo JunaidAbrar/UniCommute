@@ -59,17 +59,17 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="container max-w-screen-lg min-h-screen flex items-center">
-      <div className="grid md:grid-cols-2 gap-6 w-full">
+    <div className="min-h-screen w-full flex items-center justify-center p-4">
+      <div className="w-full max-w-4xl grid md:grid-cols-2 gap-6">
         <Card className="w-full">
-          <CardHeader>
-            <CardTitle>UniCommute</CardTitle>
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">UniCommute</CardTitle>
             <CardDescription>
               Connect with fellow students for convenient carpooling
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="login">
+            <Tabs defaultValue="login" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="register">Register</TabsTrigger>
@@ -81,7 +81,7 @@ export default function AuthPage() {
                     onSubmit={loginForm.handleSubmit((data) =>
                       loginMutation.mutate(data)
                     )}
-                    className="space-y-4"
+                    className="space-y-4 mt-4"
                   >
                     <FormField
                       control={loginForm.control}
@@ -117,7 +117,7 @@ export default function AuthPage() {
 
                     <Button
                       type="submit"
-                      className="w-full"
+                      className="w-full mt-6"
                       disabled={loginMutation.isPending}
                     >
                       Login
@@ -132,59 +132,61 @@ export default function AuthPage() {
                     onSubmit={registerForm.handleSubmit((data) =>
                       registerMutation.mutate(data)
                     )}
-                    className="space-y-4"
+                    className="space-y-4 mt-4"
                   >
-                    <FormField
-                      control={registerForm.control}
-                      name="username"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Username</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Choose username" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="space-y-4">
+                      <FormField
+                        control={registerForm.control}
+                        name="username"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Username</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Choose username" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={registerForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="email"
-                              placeholder="Enter your email"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={registerForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="email"
+                                placeholder="Enter your email"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={registerForm.control}
-                      name="password"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Password</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="password"
-                              placeholder="Choose password"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={registerForm.control}
+                        name="password"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Password</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="password"
+                                placeholder="Choose password"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormField
                         control={registerForm.control}
                         name="university"
@@ -227,7 +229,7 @@ export default function AuthPage() {
 
                     <Button
                       type="submit"
-                      className="w-full"
+                      className="w-full mt-6"
                       disabled={registerMutation.isPending}
                     >
                       Register
