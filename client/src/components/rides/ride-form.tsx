@@ -50,7 +50,6 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
       await apiRequest("POST", "/api/rides", {
         ...values,
         stopPoints: cleanedStopPoints,
-        departureTime: values.departureTime.toISOString(),
       });
 
       queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
@@ -100,7 +99,6 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
           )}
         />
 
-        {/* Stop Points */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <FormLabel>Stop Points (max 3)</FormLabel>
@@ -166,7 +164,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                       )}
                     >
                       {field.value ? (
-                        format(new Date(field.value), "PPP p")
+                        format(field.value, "PPP p")
                       ) : (
                         <span>Pick a date and time</span>
                       )}
@@ -177,10 +175,10 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={new Date(field.value)}
+                    selected={field.value}
                     onSelect={(date) => {
                       if (date) {
-                        const currentTime = new Date(field.value);
+                        const currentTime = field.value;
                         date.setHours(currentTime.getHours());
                         date.setMinutes(currentTime.getMinutes());
                         field.onChange(date);
@@ -198,7 +196,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                         date.setMinutes(parseInt(minutes));
                         field.onChange(date);
                       }}
-                      value={format(new Date(field.value), "HH:mm")}
+                      value={format(field.value, "HH:mm")}
                     />
                   </div>
                 </PopoverContent>
@@ -249,7 +247,6 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                     const value = parseInt(e.target.value);
                     if (!isNaN(value) && value >= 1 && value <= 6) {
                       field.onChange(value);
-                      // Update seats available in real-time
                       queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
                     }
                   }}

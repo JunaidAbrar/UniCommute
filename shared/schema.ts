@@ -30,7 +30,7 @@ export const requests = pgTable("requests", {
   id: serial("id").primaryKey(),
   rideId: integer("ride_id").notNull(),
   userId: integer("user_id").notNull(),
-  status: text("status").notNull(), // PENDING, ACCEPTED, REJECTED
+  status: text("status").notNull(),
   createdAt: timestamp("created_at", { mode: 'string' }).notNull().defaultNow()
 });
 
@@ -40,7 +40,7 @@ export const messages = pgTable("messages", {
   userId: integer("user_id").notNull(),
   content: text("content").notNull(),
   timestamp: timestamp("timestamp", { mode: 'string' }).notNull().defaultNow(),
-  type: text("type").notNull().default('text'), // text, image
+  type: text("type").notNull().default('text'),
   attachment: text("attachment")
 });
 
@@ -51,13 +51,14 @@ export const insertUserSchema = createInsertSchema(users).pick({
   university: true
 });
 
-export const insertRideSchema = createInsertSchema(rides).pick({
-  origin: true,
-  destination: true,
-  stopPoints: true,
-  departureTime: true,
-  transportType: true,
-  seatsAvailable: true
+// Custom schema for ride creation that handles Date objects
+export const insertRideSchema = z.object({
+  origin: z.string().min(1, "Origin is required"),
+  destination: z.string().min(1, "Destination is required"),
+  stopPoints: z.array(z.string()).optional(),
+  departureTime: z.coerce.date(),
+  transportType: transportType,
+  seatsAvailable: z.number().min(1).max(6)
 });
 
 export const insertRequestSchema = createInsertSchema(requests).pick({
