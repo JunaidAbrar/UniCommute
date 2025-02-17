@@ -19,7 +19,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!parseResult.success) return res.status(400).json(parseResult.error);
 
     const ride = await storage.createRide(req.user.id, parseResult.data);
-    res.status(201).json(ride);
+    const rides = await storage.getActiveRides();
+    res.status(201).json({ ride, rides });
   });
 
   app.get("/api/rides", async (req, res) => {

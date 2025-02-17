@@ -28,7 +28,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="container max-w-md p-4 pb-16">
+    <div className="container max-w-md p-4 pb-24 mx-auto min-h-screen">
       <header className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">UniCommute</h1>
