@@ -62,16 +62,20 @@ export class DatabaseStorage implements IStorage {
       throw new Error("You already have an active ride. Complete or cancel your existing ride first.");
     }
 
+    // Convert departureTime to ISO string if it's a Date object
+    const rideData = {
+      ...ride,
+      departureTime: ride.departureTime instanceof Date ? ride.departureTime.toISOString() : ride.departureTime,
+      hostId,
+      isActive: true,
+      participants: [hostId], // Host is automatically first participant
+      stopPoints: ride.stopPoints || []
+    };
+
     // Create new ride with atomic participant reference
     const [newRide] = await db
       .insert(ridesTable)
-      .values({
-        ...ride,
-        hostId,
-        isActive: true,
-        participants: [hostId], // Host is automatically first participant
-        stopPoints: ride.stopPoints || []
-      })
+      .values(rideData)
       .returning();
 
     return newRide;
