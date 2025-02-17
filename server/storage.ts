@@ -1,13 +1,13 @@
 import { IStorage } from "./types";
 import {
-  users, rides, requests, messages,
+  users, rides as ridesTable, requests, messages,
   User, InsertUser,
   Ride, InsertRide,
   Request, InsertRequest,
   Message, InsertMessage
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -21,7 +21,7 @@ export class DatabaseStorage implements IStorage {
     this.sessionStore = new PostgresSessionStore({
       pool,
       createTableIfMissing: true,
-      tableName: 'session' // Explicitly name the session table
+      tableName: 'session'
     });
   }
 
@@ -43,13 +43,16 @@ export class DatabaseStorage implements IStorage {
 
   // Ride Operations
   async hasActiveRide(userId: number): Promise<boolean> {
-    const rides = await db
+    const activeRides = await db
       .select()
-      .from(rides)
-      .where(eq(rides.hostId, userId))
-      .where(eq(rides.isActive, true));
-
-    return rides.length > 0;
+      .from(ridesTable)
+      .where(
+        and(
+          eq(ridesTable.hostId, userId),
+          eq(ridesTable.isActive, true)
+        )
+      );
+    return activeRides.length > 0;
   }
 
   async createRide(hostId: number, ride: InsertRide): Promise<Ride> {
@@ -59,7 +62,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     const [newRide] = await db
-      .insert(rides)
+      .insert(ridesTable)
       .values({
         ...ride,
         hostId,
@@ -72,12 +75,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRide(id: number): Promise<Ride | undefined> {
-    const [ride] = await db.select().from(rides).where(eq(rides.id, id));
+    const [ride] = await db.select().from(ridesTable).where(eq(ridesTable.id, id));
     return ride;
   }
 
   async getActiveRides(): Promise<Ride[]> {
-    return await db.select().from(rides).where(eq(rides.isActive, true));
+    return await db.select().from(ridesTable).where(eq(ridesTable.isActive, true));
   }
 
   async deleteRide(rideId: number, userId: number): Promise<void> {
@@ -86,22 +89,22 @@ export class DatabaseStorage implements IStorage {
     if (ride.hostId !== userId) throw new Error("Unauthorized");
 
     if (ride.transportType === "PERSONAL") {
-      await db.delete(rides).where(eq(rides.id, rideId));
+      await db.delete(ridesTable).where(eq(ridesTable.id, rideId));
     } else {
       const participants = ride.participants.filter(id => id !== userId);
       if (participants.length > 0) {
         await this.transferRideOwnership(rideId, participants[0]);
       } else {
-        await db.delete(rides).where(eq(rides.id, rideId));
+        await db.delete(ridesTable).where(eq(ridesTable.id, rideId));
       }
     }
   }
 
   async transferRideOwnership(rideId: number, newHostId: number): Promise<Ride> {
     const [updatedRide] = await db
-      .update(rides)
+      .update(ridesTable)
       .set({ hostId: newHostId })
-      .where(eq(rides.id, rideId))
+      .where(eq(ridesTable.id, rideId))
       .returning();
 
     if (!updatedRide) throw new Error("Ride not found");
@@ -113,11 +116,11 @@ export class DatabaseStorage implements IStorage {
     if (!ride) throw new Error("Ride not found");
 
     const [updatedRide] = await db
-      .update(rides)
+      .update(ridesTable)
       .set({
         participants: [...(ride.participants || []), userId],
       })
-      .where(eq(rides.id, rideId))
+      .where(eq(ridesTable.id, rideId))
       .returning();
 
     return updatedRide;
