@@ -58,14 +58,16 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
       form.reset();
       setStopPoints([]);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to create ride";
+
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create ride",
+        description: errorMessage,
         variant: "destructive",
       });
 
-      // If there's an active ride error, close the sheet
-      if (error instanceof Error && error.message.includes("active ride")) {
+      // If it's an active ride error, close the sheet
+      if (errorMessage.includes("active ride")) {
         onSuccess?.();
       }
     }
