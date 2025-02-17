@@ -19,7 +19,7 @@ export const rides = pgTable("rides", {
   origin: text("origin").notNull(),
   destination: text("destination").notNull(),
   stopPoints: text("stop_points").array().notNull().default([]),
-  departureTime: timestamp("departure_time").notNull(),
+  departureTime: timestamp("departure_time", { mode: 'string' }).notNull(),
   transportType: text("transport_type").notNull(),
   seatsAvailable: integer("seats_available").notNull(),
   isActive: boolean("is_active").notNull().default(true),
@@ -31,7 +31,7 @@ export const requests = pgTable("requests", {
   rideId: integer("ride_id").notNull(),
   userId: integer("user_id").notNull(),
   status: text("status").notNull(), // PENDING, ACCEPTED, REJECTED
-  createdAt: timestamp("created_at").notNull().defaultNow()
+  createdAt: timestamp("created_at", { mode: 'string' }).notNull().defaultNow()
 });
 
 export const messages = pgTable("messages", {
@@ -39,7 +39,7 @@ export const messages = pgTable("messages", {
   rideId: integer("ride_id").notNull(),
   userId: integer("user_id").notNull(),
   content: text("content").notNull(),
-  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  timestamp: timestamp("timestamp", { mode: 'string' }).notNull().defaultNow(),
   type: text("type").notNull().default('text'), // text, image
   attachment: text("attachment")
 });
