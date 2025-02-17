@@ -11,9 +11,12 @@ export function useChat(rideId: number) {
   const { user } = useAuth();
 
   // Fetch existing messages
-  const { data: existingMessages } = useQuery<Message[]>({
+  useQuery<Message[]>({
     queryKey: [`/api/rides/${rideId}/messages`],
-    queryFn: () => apiRequest(`/api/rides/${rideId}/messages`),
+    async queryFn() {
+      const res = await apiRequest("GET", `/api/rides/${rideId}/messages`);
+      return res.json();
+    },
     onSuccess: (data) => {
       setMessages(data);
     },
@@ -52,7 +55,8 @@ export function useChat(rideId: number) {
     wsRef.current.send(JSON.stringify({
       userId: user.id,
       rideId,
-      content
+      content,
+      type: 'text'
     }));
   };
 
