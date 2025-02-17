@@ -18,18 +18,39 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Plus, Minus } from "lucide-react";
+import { CalendarIcon, Plus, Minus, X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { insertRideSchema, transportType } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
   const { toast } = useToast();
   const [stopPoints, setStopPoints] = useState<string[]>([]);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  // Handle keyboard visibility
+  useEffect(() => {
+    const handleResize = () => {
+      const isKeyboard = window.innerHeight < window.outerHeight * 0.75;
+      setIsKeyboardVisible(isKeyboard);
+
+      // Scroll to focused input when keyboard shows
+      const focusedElement = document.activeElement;
+      if (isKeyboard && focusedElement instanceof HTMLElement) {
+        setTimeout(() => {
+          focusedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const form = useForm({
     resolver: zodResolver(insertRideSchema),
@@ -67,8 +88,6 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
         variant: "destructive",
       });
 
-      // Only close the sheet for successful creation
-      // Let the user see the error message for failures
       if (!(error instanceof Error)) {
         onSuccess?.();
       }
@@ -92,184 +111,267 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <FormField
-          control={form.control}
-          name="origin"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Pickup Location</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter pickup location" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+    <ScrollArea 
+      className={cn(
+        "h-[calc(100vh-8rem)]",
+        "md:h-auto",
+        "-webkit-overflow-scrolling: touch"
+      )}
+    >
+      <Form {...form}>
+        <form 
+          onSubmit={form.handleSubmit(onSubmit)} 
+          className={cn(
+            "space-y-6 px-6",
+            "pb-[calc(2rem+env(safe-area-inset-bottom,0px))]",
+            isKeyboardVisible && "pb-[calc(4rem+env(safe-area-inset-bottom,0px))]"
           )}
-        />
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <FormLabel>Stop Points (max 3)</FormLabel>
-            {stopPoints.length < 3 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addStopPoint}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Stop
-              </Button>
+        >
+          <FormField
+            control={form.control}
+            name="origin"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Pickup Location</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Input 
+                      type="search"
+                      placeholder="Enter pickup location"
+                      className="h-12 pl-4 pr-10"
+                      autoComplete="street-address"
+                      autoCapitalize="words"
+                      {...field}
+                    />
+                    {field.value && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                        onClick={() => field.onChange("")}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
             )}
-          </div>
-          {stopPoints.map((stop, index) => (
-            <div key={index} className="flex gap-2">
-              <Input
-                placeholder={`Stop ${index + 1}`}
-                value={stop}
-                onChange={(e) => updateStopPoint(index, e.target.value)}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => removeStopPoint(index)}
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
+          />
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <FormLabel>Stop Points (max 3)</FormLabel>
+              {stopPoints.length < 3 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addStopPoint}
+                  className="h-12"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Stop
+                </Button>
+              )}
             </div>
-          ))}
-        </div>
-
-        <FormField
-          control={form.control}
-          name="destination"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Destination</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter destination" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="departureTime"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Departure Time</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
+            {stopPoints.map((stop, index) => (
+              <div key={index} className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    type="search"
+                    placeholder={`Stop ${index + 1}`}
+                    value={stop}
+                    onChange={(e) => updateStopPoint(index, e.target.value)}
+                    className="h-12 pl-4 pr-10"
+                    autoComplete="street-address"
+                    autoCapitalize="words"
+                  />
+                  {stop && (
                     <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full pl-3 text-left font-normal",
-                        !field.value && "text-muted-foreground"
-                      )}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                      onClick={() => updateStopPoint(index, "")}
                     >
-                      {field.value ? (
-                        format(field.value, "PPP p")
-                      ) : (
-                        <span>Pick a date and time</span>
-                      )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      <X className="h-4 w-4" />
                     </Button>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => removeStopPoint(index)}
+                  className="h-12 w-12"
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <FormField
+            control={form.control}
+            name="destination"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Destination</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Input 
+                      type="search"
+                      placeholder="Enter destination"
+                      className="h-12 pl-4 pr-10"
+                      autoComplete="street-address"
+                      autoCapitalize="words"
+                      {...field}
+                    />
+                    {field.value && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                        onClick={() => field.onChange("")}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="departureTime"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Departure Time</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full h-12 pl-4 text-left font-normal",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        {field.value ? (
+                          format(field.value, "PPP p")
+                        ) : (
+                          <span>Pick a date and time</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={(date) => {
+                        if (date) {
+                          const currentTime = field.value;
+                          date.setHours(currentTime.getHours());
+                          date.setMinutes(currentTime.getMinutes());
+                          field.onChange(date);
+                        }
+                      }}
+                      initialFocus
+                    />
+                    <div className="p-3 border-t">
+                      <Input
+                        type="time"
+                        onChange={(e) => {
+                          const [hours, minutes] = e.target.value.split(':');
+                          const date = new Date(field.value);
+                          date.setHours(parseInt(hours));
+                          date.setMinutes(parseInt(minutes));
+                          field.onChange(date);
+                        }}
+                        value={format(field.value, "HH:mm")}
+                        className="h-12"
+                      />
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="transportType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Transport Type</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger className="h-12">
+                      <SelectValue placeholder="Select transport type" />
+                    </SelectTrigger>
                   </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={field.value}
-                    onSelect={(date) => {
-                      if (date) {
-                        const currentTime = field.value;
-                        date.setHours(currentTime.getHours());
-                        date.setMinutes(currentTime.getMinutes());
-                        field.onChange(date);
+                  <SelectContent>
+                    {transportType.options.map((type) => (
+                      <SelectItem key={type} value={type} className="h-12">
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="seatsAvailable"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Available Seats</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={6}
+                    className="h-12"
+                    {...field}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value);
+                      if (!isNaN(value) && value >= 1 && value <= 6) {
+                        field.onChange(value);
+                        queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
                       }
                     }}
-                    initialFocus
                   />
-                  <div className="p-3 border-t">
-                    <Input
-                      type="time"
-                      onChange={(e) => {
-                        const [hours, minutes] = e.target.value.split(':');
-                        const date = new Date(field.value);
-                        date.setHours(parseInt(hours));
-                        date.setMinutes(parseInt(minutes));
-                        field.onChange(date);
-                      }}
-                      value={format(field.value, "HH:mm")}
-                    />
-                  </div>
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="transportType"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Transport Type</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select transport type" />
-                  </SelectTrigger>
                 </FormControl>
-                <SelectContent>
-                  {transportType.options.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="seatsAvailable"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Available Seats</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  min={1}
-                  max={6}
-                  {...field}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value);
-                    if (!isNaN(value) && value >= 1 && value <= 6) {
-                      field.onChange(value);
-                      queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
-                    }
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <Button type="submit" className="w-full">
-          Create Ride
-        </Button>
-      </form>
-    </Form>
+          <Button 
+            type="submit" 
+            className={cn(
+              "w-full h-12",
+              "active:scale-[0.98] transition-transform",
+              "touch-none"
+            )}
+          >
+            Create Ride
+          </Button>
+        </form>
+      </Form>
+    </ScrollArea>
   );
 }

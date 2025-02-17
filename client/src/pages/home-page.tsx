@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const { data: rides = [] } = useQuery<Ride[]>({
     queryKey: ["/api/rides"],
   });
@@ -53,22 +54,23 @@ export default function HomePage() {
           <p className="text-sm text-muted-foreground">Find your next ride</p>
         </div>
 
-        <Sheet>
+        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
           <SheetTrigger asChild>
-            <Button size="icon">
-              <Plus className="h-4 w-4" />
+            <Button size="icon" className="h-12 w-12">
+              <Plus className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent>
-            <SheetHeader>
+          <SheetContent
+            side="bottom"
+            className="h-[90vh] sm:h-full rounded-t-[10px] sm:rounded-t-none"
+          >
+            <SheetHeader className="sticky top-0 bg-background z-10 pb-4">
               <SheetTitle>Create a New Ride</SheetTitle>
               <SheetDescription>
                 Fill in the details to offer a ride
               </SheetDescription>
             </SheetHeader>
-            <div className="mt-4">
-              <RideForm />
-            </div>
+            <RideForm onSuccess={() => setIsSheetOpen(false)} />
           </SheetContent>
         </Sheet>
       </header>
@@ -76,9 +78,10 @@ export default function HomePage() {
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
+          type="search"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
+          className="pl-9 h-12"
           placeholder="Search origin, destination or stops..."
         />
       </div>
