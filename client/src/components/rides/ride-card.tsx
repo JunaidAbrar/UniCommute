@@ -78,7 +78,7 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
             </AvatarFallback>
           </Avatar>
           <CardTitle className="text-lg">
-            {isHost ? "Your Ride" : `Ride #${ride.id}`}
+            {isHost ? "Your Ride" : "Host"} • {ride.destination}
           </CardTitle>
         </CardHeader>
         <CardContent>
