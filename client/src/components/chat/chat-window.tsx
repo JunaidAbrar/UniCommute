@@ -10,7 +10,7 @@ import { useState, useRef, useEffect } from "react";
 
 export function ChatWindow({ rideId }: { rideId: number }) {
   const [message, setMessage] = useState("");
-  const { messages, sendMessage, connected } = useChat(rideId);
+  const { messages, sendMessage, isLoading } = useChat(rideId);
   const { user } = useAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -76,10 +76,10 @@ export function ChatWindow({ rideId }: { rideId: number }) {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Type a message..."
-            disabled={!connected}
+            disabled={isLoading}
             className="flex-1"
           />
-          <Button type="submit" disabled={!connected || !message.trim()}>
+          <Button type="submit" disabled={isLoading || !message.trim()}>
             Send
           </Button>
         </div>
