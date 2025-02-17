@@ -6,12 +6,20 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
 import { useChat } from "@/hooks/use-chat";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 export function ChatWindow({ rideId }: { rideId: number }) {
   const [message, setMessage] = useState("");
   const { messages, sendMessage, connected } = useChat(rideId);
   const { user } = useAuth();
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,8 +30,11 @@ export function ChatWindow({ rideId }: { rideId: number }) {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
-      <ScrollArea className="flex-1 p-4">
+    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]">
+      <ScrollArea 
+        ref={scrollAreaRef}
+        className="flex-1 p-4"
+      >
         <div className="space-y-4">
           {messages.map((msg, i) => (
             <div
@@ -56,13 +67,17 @@ export function ChatWindow({ rideId }: { rideId: number }) {
         </div>
       </ScrollArea>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t">
-        <div className="flex gap-2">
+      <form 
+        onSubmit={handleSubmit} 
+        className="sticky bottom-0 p-4 border-t bg-background md:pb-4 pb-[calc(4rem+env(safe-area-inset-bottom,0px))]"
+      >
+        <div className="flex gap-2 max-w-2xl mx-auto">
           <Input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Type a message..."
             disabled={!connected}
+            className="flex-1"
           />
           <Button type="submit" disabled={!connected || !message.trim()}>
             Send
