@@ -63,6 +63,11 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
         description: error instanceof Error ? error.message : "Failed to create ride",
         variant: "destructive",
       });
+
+      // If there's an active ride error, close the sheet
+      if (error instanceof Error && error.message.includes("active ride")) {
+        onSuccess?.();
+      }
     }
   }
 

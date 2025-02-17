@@ -42,7 +42,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Ride Operations
+  async hasActiveRide(userId: number): Promise<boolean> {
+    const rides = await db
+      .select()
+      .from(rides)
+      .where(eq(rides.hostId, userId))
+      .where(eq(rides.isActive, true));
+
+    return rides.length > 0;
+  }
+
   async createRide(hostId: number, ride: InsertRide): Promise<Ride> {
+    const hasActive = await this.hasActiveRide(hostId);
+    if (hasActive) {
+      throw new Error("You already have an active ride. Complete or cancel your existing ride first.");
+    }
+
     const [newRide] = await db
       .insert(rides)
       .values({
