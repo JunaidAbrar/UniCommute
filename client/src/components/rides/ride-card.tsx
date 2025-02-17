@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { MapPin, Clock, Users, Car, Trash2 } from "lucide-react";
 import type { Ride } from "@shared/schema";
@@ -19,13 +19,18 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  const isHost = user?.id === ride.hostId;
+  const isParticipant = ride.participants.includes(user?.id ?? -1);
+
   const handleDelete = async () => {
     try {
       await apiRequest("DELETE", `/api/rides/${ride.id}`);
       queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
       toast({
         title: "Success",
-        description: "Ride deleted successfully",
+        description: ride.transportType === "PERSONAL" 
+          ? "Ride deleted successfully" 
+          : "You've left the ride successfully",
       });
     } catch (error) {
       toast({
@@ -36,13 +41,31 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
     }
   };
 
+  const handleJoinRide = async () => {
+    try {
+      await apiRequest("POST", "/api/requests", { rideId: ride.id });
+      queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
+      toast({
+        title: "Success",
+        description: "Successfully joined the ride",
+      });
+      onSwipe?.();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to join ride",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <motion.div
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={(e, { offset, velocity }) => {
-        if (offset.x > 100 && velocity.x > 20) {
-          onSwipe?.();
+        if (offset.x > 100 && velocity.x > 20 && !isHost) {
+          handleJoinRide();
         }
       }}
       className="touch-none"
@@ -50,9 +73,13 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
       <Card className="w-full max-w-sm mx-auto">
         <CardHeader className="flex flex-row items-center gap-4">
           <Avatar>
-            <AvatarFallback>U</AvatarFallback>
+            <AvatarFallback>
+              {isHost ? "H" : "U"}
+            </AvatarFallback>
           </Avatar>
-          <CardTitle className="text-lg">{ride.hostId}</CardTitle>
+          <CardTitle className="text-lg">
+            {isHost ? "Your Ride" : `Ride #${ride.id}`}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -79,32 +106,39 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
             </div>
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm">{ride.seatsAvailable} seats available</span>
+              <span className="text-sm">
+                {ride.seatsAvailable} seats available • {ride.participants.length} joined
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <Car className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">{ride.transportType}</span>
             </div>
             <div className="flex gap-2 pt-4">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setLocation(`/chat/${ride.id}`)}
-              >
-                Chat
-              </Button>
-              {user?.id === ride.hostId && (
+              {isParticipant && (
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setLocation(`/chat/${ride.id}`)}
+                >
+                  Chat
+                </Button>
+              )}
+              {isHost && (
                 <Button
                   variant="destructive"
                   size="icon"
                   onClick={handleDelete}
+                  title={ride.transportType === "PERSONAL" ? "Delete ride" : "Leave ride"}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               )}
-              <Button className="flex-1" onClick={onSwipe}>
-                Join Ride
-              </Button>
+              {!isParticipant && (
+                <Button className="flex-1" onClick={handleJoinRide}>
+                  Join Ride
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>

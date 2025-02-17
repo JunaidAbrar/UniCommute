@@ -7,7 +7,7 @@ import {
   Message, InsertMessage
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, not, sql } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -56,21 +56,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRide(hostId: number, ride: InsertRide): Promise<Ride> {
+    // First check for existing active rides
     const hasActive = await this.hasActiveRide(hostId);
     if (hasActive) {
       throw new Error("You already have an active ride. Complete or cancel your existing ride first.");
     }
 
+    // Create new ride with atomic participant reference
     const [newRide] = await db
       .insert(ridesTable)
       .values({
         ...ride,
         hostId,
         isActive: true,
-        participants: [hostId],
+        participants: [hostId], // Host is automatically first participant
         stopPoints: ride.stopPoints || []
       })
       .returning();
+
     return newRide;
   }
 
@@ -80,7 +83,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getActiveRides(): Promise<Ride[]> {
-    return await db.select().from(ridesTable).where(eq(ridesTable.isActive, true));
+    return await db
+      .select()
+      .from(ridesTable)
+      .where(eq(ridesTable.isActive, true))
+      .orderBy(ridesTable.departureTime);
   }
 
   async deleteRide(rideId: number, userId: number): Promise<void> {
@@ -88,13 +95,17 @@ export class DatabaseStorage implements IStorage {
     if (!ride) throw new Error("Ride not found");
     if (ride.hostId !== userId) throw new Error("Unauthorized");
 
+    // Different logic based on transport type
     if (ride.transportType === "PERSONAL") {
+      // For personal vehicles, simply delete the ride
       await db.delete(ridesTable).where(eq(ridesTable.id, rideId));
     } else {
-      // For CNG/UBER rides, transfer ownership if there are other participants
-      const participants = ride.participants.filter(id => id !== userId);
-      if (participants.length > 0) {
-        await this.transferRideOwnership(rideId, participants[0]);
+      // For CNG/UBER rides, handle ownership transfer if there are other participants
+      const otherParticipants = ride.participants.filter(id => id !== userId);
+
+      if (otherParticipants.length > 0) {
+        // Transfer ownership to the first remaining participant
+        await this.transferRideOwnership(rideId, otherParticipants[0]);
       } else {
         // If no other participants, delete the ride
         await db.delete(ridesTable).where(eq(ridesTable.id, rideId));
@@ -107,7 +118,7 @@ export class DatabaseStorage implements IStorage {
       .update(ridesTable)
       .set({ 
         hostId: newHostId,
-        participants: db.sql`array_remove(${ridesTable.participants}, ${newHostId})`
+        participants: sql`array_remove(${ridesTable.participants}, ${newHostId})`
       })
       .where(eq(ridesTable.id, rideId))
       .returning();
@@ -120,6 +131,13 @@ export class DatabaseStorage implements IStorage {
     const ride = await this.getRide(rideId);
     if (!ride) throw new Error("Ride not found");
 
+    // Check if user already has an active ride
+    const hasActive = await this.hasActiveRide(userId);
+    if (hasActive) {
+      throw new Error("You already have an active ride. Leave your current ride before joining another.");
+    }
+
+    // Add participant atomically
     const [updatedRide] = await db
       .update(ridesTable)
       .set({
