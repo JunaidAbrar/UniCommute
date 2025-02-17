@@ -27,20 +27,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState } from "react";
 
-type FormValues = {
-  origin: string;
-  destination: string;
-  stopPoints: string[];
-  departureTime: Date;
-  transportType: string;
-  seatsAvailable: number;
-};
-
 export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
   const { toast } = useToast();
   const [stopPoints, setStopPoints] = useState<string[]>([]);
 
-  const form = useForm<FormValues>({
+  const form = useForm({
     resolver: zodResolver(insertRideSchema),
     defaultValues: {
       origin: "",
@@ -52,12 +43,16 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
     },
   });
 
-  async function onSubmit(data: FormValues) {
+  async function onSubmit(values: any) {
     try {
+      const cleanedStopPoints = stopPoints.filter(point => point.trim() !== "");
+
       await apiRequest("POST", "/api/rides", {
-        ...data,
-        stopPoints,
+        ...values,
+        stopPoints: cleanedStopPoints,
+        departureTime: values.departureTime.toISOString(),
       });
+
       queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
       toast({ title: "Success", description: "Ride created successfully" });
       onSuccess?.();
@@ -171,7 +166,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                       )}
                     >
                       {field.value ? (
-                        format(field.value, "PPP p")
+                        format(new Date(field.value), "PPP p")
                       ) : (
                         <span>Pick a date and time</span>
                       )}
@@ -182,11 +177,10 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={field.value}
+                    selected={new Date(field.value)}
                     onSelect={(date) => {
                       if (date) {
-                        // Keep the current time when selecting a new date
-                        const currentTime = field.value || new Date();
+                        const currentTime = new Date(field.value);
                         date.setHours(currentTime.getHours());
                         date.setMinutes(currentTime.getMinutes());
                         field.onChange(date);
@@ -199,12 +193,12 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                       type="time"
                       onChange={(e) => {
                         const [hours, minutes] = e.target.value.split(':');
-                        const date = field.value || new Date();
+                        const date = new Date(field.value);
                         date.setHours(parseInt(hours));
                         date.setMinutes(parseInt(minutes));
-                        field.onChange(new Date(date));
+                        field.onChange(date);
                       }}
-                      value={format(field.value || new Date(), "HH:mm")}
+                      value={format(new Date(field.value), "HH:mm")}
                     />
                   </div>
                 </PopoverContent>
@@ -253,9 +247,11 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                   {...field}
                   onChange={(e) => {
                     const value = parseInt(e.target.value);
-                    field.onChange(value);
-                    // Trigger a refetch of rides to update the seats count
-                    queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
+                    if (!isNaN(value) && value >= 1 && value <= 6) {
+                      field.onChange(value);
+                      // Update seats available in real-time
+                      queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
+                    }
                   }}
                 />
               </FormControl>
