@@ -47,27 +47,29 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
     try {
       const cleanedStopPoints = stopPoints.filter(point => point.trim() !== "");
 
-      await apiRequest("POST", "/api/rides", {
+      const res = await apiRequest("POST", "/api/rides", {
         ...values,
         stopPoints: cleanedStopPoints,
       });
 
       queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
-      toast({ title: "Success", description: "Ride created successfully" });
+      toast({ 
+        title: "Success", 
+        description: "Ride created successfully" 
+      });
       onSuccess?.();
       form.reset();
       setStopPoints([]);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to create ride";
-
       toast({
         title: "Error",
-        description: errorMessage,
+        description: error instanceof Error ? error.message : "Failed to create ride",
         variant: "destructive",
       });
 
-      // If it's an active ride error, close the sheet
-      if (errorMessage.includes("active ride")) {
+      // Only close the sheet for successful creation
+      // Let the user see the error message for failures
+      if (!(error instanceof Error)) {
         onSuccess?.();
       }
     }

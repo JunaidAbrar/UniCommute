@@ -1,12 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { Message } from "@shared/schema";
 import { useAuth } from "./use-auth";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export function useChat(rideId: number) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const { user } = useAuth();
+
+  // Fetch existing messages
+  const { data: existingMessages } = useQuery<Message[]>({
+    queryKey: [`/api/rides/${rideId}/messages`],
+    queryFn: () => apiRequest(`/api/rides/${rideId}/messages`),
+    onSuccess: (data) => {
+      setMessages(data);
+    },
+  });
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";

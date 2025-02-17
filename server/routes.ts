@@ -18,9 +18,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const parseResult = insertRideSchema.safeParse(req.body);
     if (!parseResult.success) return res.status(400).json(parseResult.error);
 
-    const ride = await storage.createRide(req.user.id, parseResult.data);
-    const rides = await storage.getActiveRides();
-    res.status(201).json({ ride, rides });
+    try {
+      const ride = await storage.createRide(req.user.id, parseResult.data);
+      const rides = await storage.getActiveRides();
+      res.status(201).json({ ride, rides });
+    } catch (error) {
+      res.status(400).json({ 
+        message: error instanceof Error ? error.message : "Failed to create ride" 
+      });
+    }
   });
 
   app.get("/api/rides", async (req, res) => {
@@ -59,6 +65,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Messages
+  // Get messages for a ride
+  app.get("/api/rides/:rideId/messages", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const messages = await storage.getMessagesByRide(parseInt(req.params.rideId));
+      res.json(messages);
+    } catch (error) {
+      res.status(400).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch messages" 
+      });
+    }
+  });
+
   wss.on('connection', (ws) => {
     ws.on('message', async (data) => {
       try {
