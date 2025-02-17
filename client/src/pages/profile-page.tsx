@@ -41,6 +41,10 @@ export default function ProfilePage() {
               <p className="font-medium">{user.username}</p>
             </div>
             <div>
+              <span className="text-sm text-muted-foreground">Email</span>
+              <p className="font-medium">{user.email}</p>
+            </div>
+            <div>
               <span className="text-sm text-muted-foreground">University</span>
               <p className="font-medium">{user.university}</p>
             </div>
