@@ -1,79 +1,76 @@
 import { IStorage } from "./types";
 import {
+  users, rides, requests, messages,
   User, InsertUser,
   Ride, InsertRide,
   Request, InsertRequest,
-  Message, InsertMessage,
-  TransportType
+  Message, InsertMessage
 } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import session from "express-session";
-import createMemoryStore from "memorystore";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
 
-const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPg(session);
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private rides: Map<number, Ride>;
-  private requests: Map<number, Request>;
-  private messages: Map<number, Message>;
+export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
-  currentId: { [key: string]: number };
 
   constructor() {
-    this.users = new Map();
-    this.rides = new Map();
-    this.requests = new Map();
-    this.messages = new Map();
-    this.currentId = { users: 1, rides: 1, requests: 1, messages: 1 };
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000
+    this.sessionStore = new PostgresSessionStore({
+      pool,
+      createTableIfMissing: true,
     });
   }
 
+  // User Operations
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
   async createUser(user: InsertUser): Promise<User> {
-    const id = this.currentId.users++;
-    const newUser = { ...user, id, avatar: null };
-    this.users.set(id, newUser);
+    const [newUser] = await db.insert(users).values(user).returning();
     return newUser;
   }
 
+  // Ride Operations
   async createRide(hostId: number, ride: InsertRide): Promise<Ride> {
-    const id = this.currentId.rides++;
-    const newRide = { 
-      ...ride, 
-      id, 
-      hostId, 
-      isActive: true, 
-      participants: [hostId] 
-    };
-    this.rides.set(id, newRide);
+    const [newRide] = await db
+      .insert(rides)
+      .values({
+        ...ride,
+        hostId,
+        isActive: true,
+        participants: [hostId],
+      })
+      .returning();
     return newRide;
   }
 
   async getRide(id: number): Promise<Ride | undefined> {
-    return this.rides.get(id);
+    const [ride] = await db.select().from(rides).where(eq(rides.id, id));
+    return ride;
   }
 
   async getActiveRides(): Promise<Ride[]> {
-    return Array.from(this.rides.values()).filter(ride => ride.isActive);
+    return await db.select().from(rides).where(eq(rides.isActive, true));
   }
 
   async transferRideOwnership(rideId: number, newHostId: number): Promise<Ride> {
-    const ride = await this.getRide(rideId);
-    if (!ride) throw new Error("Ride not found");
+    const [updatedRide] = await db
+      .update(rides)
+      .set({ hostId: newHostId })
+      .where(eq(rides.id, rideId))
+      .returning();
 
-    const updatedRide = { ...ride, hostId: newHostId };
-    this.rides.set(rideId, updatedRide);
+    if (!updatedRide) throw new Error("Ride not found");
     return updatedRide;
   }
 
@@ -83,14 +80,14 @@ export class MemStorage implements IStorage {
     if (ride.hostId !== userId) throw new Error("Unauthorized");
 
     if (ride.transportType === "PERSONAL") {
-      this.rides.delete(rideId);
+      await db.delete(rides).where(eq(rides.id, rideId));
     } else {
       const participants = ride.participants.filter(id => id !== userId);
       if (participants.length > 0) {
         const newHostId = participants[0];
         await this.transferRideOwnership(rideId, newHostId);
       } else {
-        this.rides.delete(rideId);
+        await db.delete(rides).where(eq(rides.id, rideId));
       }
     }
   }
@@ -99,46 +96,58 @@ export class MemStorage implements IStorage {
     const ride = await this.getRide(rideId);
     if (!ride) throw new Error("Ride not found");
 
-    const updatedRide = { 
-      ...ride, 
-      participants: [...ride.participants, userId]
-    };
-    this.rides.set(rideId, updatedRide);
+    const [updatedRide] = await db
+      .update(rides)
+      .set({
+        participants: [...(ride.participants || []), userId],
+      })
+      .where(eq(rides.id, rideId))
+      .returning();
+
     return updatedRide;
   }
 
+  // Request Operations
   async createRequest(userId: number, request: InsertRequest): Promise<Request> {
-    const id = this.currentId.requests++;
-    const newRequest = { ...request, id, userId, status: "PENDING", createdAt: new Date() };
-    this.requests.set(id, newRequest);
+    const [newRequest] = await db
+      .insert(requests)
+      .values({
+        ...request,
+        userId,
+        status: "PENDING",
+      })
+      .returning();
     return newRequest;
   }
 
   async getRequestsByRide(rideId: number): Promise<Request[]> {
-    return Array.from(this.requests.values()).filter(
-      request => request.rideId === rideId
-    );
+    return await db
+      .select()
+      .from(requests)
+      .where(eq(requests.rideId, rideId));
   }
 
+  // Message Operations
   async createMessage(userId: number, message: InsertMessage): Promise<Message> {
-    const id = this.currentId.messages++;
-    const newMessage = { 
-      ...message, 
-      id, 
-      userId, 
-      timestamp: new Date(),
-      type: message.type || 'text',
-      attachment: message.attachment || null
-    };
-    this.messages.set(id, newMessage);
+    const [newMessage] = await db
+      .insert(messages)
+      .values({
+        ...message,
+        userId,
+        type: message.type || 'text',
+        attachment: message.attachment || null,
+      })
+      .returning();
     return newMessage;
   }
 
   async getMessagesByRide(rideId: number): Promise<Message[]> {
-    return Array.from(this.messages.values())
-      .filter(message => message.rideId === rideId)
-      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    return await db
+      .select()
+      .from(messages)
+      .where(eq(messages.rideId, rideId))
+      .orderBy(messages.timestamp);
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
