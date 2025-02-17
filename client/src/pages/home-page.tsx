@@ -9,15 +9,33 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Plus } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Ride } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function HomePage() {
+  const [searchQuery, setSearchQuery] = useState("");
   const { data: rides = [] } = useQuery<Ride[]>({
     queryKey: ["/api/rides"],
   });
+
+  const filteredRides = useMemo(() => {
+    if (!searchQuery.trim()) return rides;
+
+    const query = searchQuery.toLowerCase();
+    return rides.filter((ride) => {
+      const searchableText = `
+        ${ride.origin.toLowerCase()}
+        ${ride.destination.toLowerCase()}
+        ${ride.stopPoints.join(" ").toLowerCase()}
+      `;
+      return searchableText.includes(query);
+    });
+  }, [rides, searchQuery]);
 
   const handleJoinRide = async (rideId: number) => {
     try {
@@ -55,15 +73,45 @@ export default function HomePage() {
         </Sheet>
       </header>
 
-      <div className="space-y-4">
-        {rides.map((ride) => (
-          <RideCard
-            key={ride.id}
-            ride={ride}
-            onSwipe={() => handleJoinRide(ride.id)}
-          />
-        ))}
+      <div className="relative mb-6">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9"
+          placeholder="Search origin, destination or stops..."
+        />
       </div>
+
+      <AnimatePresence mode="popLayout">
+        <div className="space-y-4">
+          {filteredRides.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="text-center py-8 text-muted-foreground"
+            >
+              {searchQuery.trim() ? "No rides found matching your search" : "No rides available"}
+            </motion.div>
+          ) : (
+            filteredRides.map((ride) => (
+              <motion.div
+                key={ride.id}
+                layout
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <RideCard
+                  ride={ride}
+                  onSwipe={() => handleJoinRide(ride.id)}
+                />
+              </motion.div>
+            ))
+          )}
+        </div>
+      </AnimatePresence>
     </div>
   );
 }
