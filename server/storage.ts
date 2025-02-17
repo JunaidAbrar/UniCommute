@@ -107,7 +107,7 @@ export class DatabaseStorage implements IStorage {
       .update(ridesTable)
       .set({ 
         hostId: newHostId,
-        participants: db.raw(`array_remove(participants, ${newHostId})`)
+        participants: db.sql`array_remove(${ridesTable.participants}, ${newHostId})`
       })
       .where(eq(ridesTable.id, rideId))
       .returning();
