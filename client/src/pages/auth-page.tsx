@@ -22,6 +22,13 @@ import { useForm } from "react-hook-form";
 import { Redirect } from "wouter";
 import { z } from "zod";
 import { insertUserSchema } from "@shared/schema";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const loginSchema = insertUserSchema.pick({ username: true, password: true });
 
@@ -42,6 +49,7 @@ export default function AuthPage() {
       username: "",
       password: "",
       university: "",
+      gender: "",
     },
   });
 
@@ -157,22 +165,47 @@ export default function AuthPage() {
                       )}
                     />
 
-                    <FormField
-                      control={registerForm.control}
-                      name="university"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>University</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter university name"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={registerForm.control}
+                        name="university"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>University</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Enter university name"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={registerForm.control}
+                        name="gender"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Gender</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select gender" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="male">Male</SelectItem>
+                                <SelectItem value="female">Female</SelectItem>
+                                <SelectItem value="other">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
                     <Button
                       type="submit"

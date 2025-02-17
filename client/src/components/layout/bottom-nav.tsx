@@ -1,9 +1,7 @@
-
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { Home, LogOut } from "lucide-react";
+import { Home, LogOut, User } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useNavigate } from "wouter";
 
 export default function BottomNav() {
   const [location, navigate] = useLocation();
@@ -24,7 +22,18 @@ export default function BottomNav() {
           <Home className="h-5 w-5" />
           <span>Home</span>
         </button>
-        
+
+        <button
+          onClick={() => navigate("/profile")}
+          className={cn(
+            "flex flex-col items-center p-2 text-sm",
+            location === "/profile" ? "text-primary" : "text-muted-foreground"
+          )}
+        >
+          <User className="h-5 w-5" />
+          <span>Profile</span>
+        </button>
+
         <button
           onClick={() => logoutMutation.mutate()}
           className="flex flex-col items-center p-2 text-sm text-muted-foreground"

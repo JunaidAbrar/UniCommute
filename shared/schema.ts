@@ -7,6 +7,7 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   university: text("university").notNull(),
+  gender: text("gender").notNull(),
   avatar: text("avatar")
 });
 
@@ -44,14 +45,13 @@ export const messages = pgTable("messages", {
   attachment: text("attachment")
 });
 
-// Schema for user input validation
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
-  university: true
+  university: true,
+  gender: true
 });
 
-// Custom schema for ride creation that handles Date objects
 export const insertRideSchema = z.object({
   origin: z.string().min(1, "Origin is required"),
   destination: z.string().min(1, "Destination is required"),
@@ -72,7 +72,6 @@ export const insertMessageSchema = createInsertSchema(messages).pick({
   attachment: true
 });
 
-// Types for TypeScript
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertRide = z.infer<typeof insertRideSchema>;
 export type InsertRequest = z.infer<typeof insertRequestSchema>;
