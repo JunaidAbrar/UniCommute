@@ -21,6 +21,7 @@ export class DatabaseStorage implements IStorage {
     this.sessionStore = new PostgresSessionStore({
       pool,
       createTableIfMissing: true,
+      tableName: 'session' // Explicitly name the session table
     });
   }
 
@@ -49,6 +50,7 @@ export class DatabaseStorage implements IStorage {
         hostId,
         isActive: true,
         participants: [hostId],
+        stopPoints: ride.stopPoints || []
       })
       .returning();
     return newRide;
@@ -63,17 +65,6 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(rides).where(eq(rides.isActive, true));
   }
 
-  async transferRideOwnership(rideId: number, newHostId: number): Promise<Ride> {
-    const [updatedRide] = await db
-      .update(rides)
-      .set({ hostId: newHostId })
-      .where(eq(rides.id, rideId))
-      .returning();
-
-    if (!updatedRide) throw new Error("Ride not found");
-    return updatedRide;
-  }
-
   async deleteRide(rideId: number, userId: number): Promise<void> {
     const ride = await this.getRide(rideId);
     if (!ride) throw new Error("Ride not found");
@@ -84,12 +75,22 @@ export class DatabaseStorage implements IStorage {
     } else {
       const participants = ride.participants.filter(id => id !== userId);
       if (participants.length > 0) {
-        const newHostId = participants[0];
-        await this.transferRideOwnership(rideId, newHostId);
+        await this.transferRideOwnership(rideId, participants[0]);
       } else {
         await db.delete(rides).where(eq(rides.id, rideId));
       }
     }
+  }
+
+  async transferRideOwnership(rideId: number, newHostId: number): Promise<Ride> {
+    const [updatedRide] = await db
+      .update(rides)
+      .set({ hostId: newHostId })
+      .where(eq(rides.id, rideId))
+      .returning();
+
+    if (!updatedRide) throw new Error("Ride not found");
+    return updatedRide;
   }
 
   async addParticipant(rideId: number, userId: number): Promise<Ride> {

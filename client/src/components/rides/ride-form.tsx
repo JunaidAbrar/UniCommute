@@ -18,17 +18,19 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Plus, Minus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { insertRideSchema, transportType } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useState } from "react";
 
 type FormValues = {
   origin: string;
   destination: string;
+  stopPoints: string[];
   departureTime: Date;
   transportType: string;
   seatsAvailable: number;
@@ -36,11 +38,14 @@ type FormValues = {
 
 export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
   const { toast } = useToast();
+  const [stopPoints, setStopPoints] = useState<string[]>([]);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(insertRideSchema),
     defaultValues: {
       origin: "",
       destination: "",
+      stopPoints: [],
       departureTime: new Date(),
       transportType: "PERSONAL",
       seatsAvailable: 3,
@@ -49,10 +54,15 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
 
   async function onSubmit(data: FormValues) {
     try {
-      await apiRequest("POST", "/api/rides", data);
+      await apiRequest("POST", "/api/rides", {
+        ...data,
+        stopPoints,
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
       toast({ title: "Success", description: "Ride created successfully" });
       onSuccess?.();
+      form.reset();
+      setStopPoints([]);
     } catch (error) {
       toast({
         title: "Error",
@@ -61,6 +71,22 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
       });
     }
   }
+
+  const addStopPoint = () => {
+    if (stopPoints.length < 3) {
+      setStopPoints([...stopPoints, ""]);
+    }
+  };
+
+  const removeStopPoint = (index: number) => {
+    setStopPoints(stopPoints.filter((_, i) => i !== index));
+  };
+
+  const updateStopPoint = (index: number, value: string) => {
+    const newStopPoints = [...stopPoints];
+    newStopPoints[index] = value;
+    setStopPoints(newStopPoints);
+  };
 
   return (
     <Form {...form}>
@@ -78,6 +104,41 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
             </FormItem>
           )}
         />
+
+        {/* Stop Points */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <FormLabel>Stop Points (max 3)</FormLabel>
+            {stopPoints.length < 3 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addStopPoint}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Stop
+              </Button>
+            )}
+          </div>
+          {stopPoints.map((stop, index) => (
+            <div key={index} className="flex gap-2">
+              <Input
+                placeholder={`Stop ${index + 1}`}
+                value={stop}
+                onChange={(e) => updateStopPoint(index, e.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => removeStopPoint(index)}
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
 
         <FormField
           control={form.control}
@@ -112,7 +173,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                       {field.value ? (
                         format(field.value, "PPP p")
                       ) : (
-                        <span>Pick a date</span>
+                        <span>Pick a date and time</span>
                       )}
                       <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                     </Button>
@@ -122,9 +183,30 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                   <Calendar
                     mode="single"
                     selected={field.value}
-                    onSelect={field.onChange}
+                    onSelect={(date) => {
+                      if (date) {
+                        // Keep the current time when selecting a new date
+                        const currentTime = field.value || new Date();
+                        date.setHours(currentTime.getHours());
+                        date.setMinutes(currentTime.getMinutes());
+                        field.onChange(date);
+                      }
+                    }}
                     initialFocus
                   />
+                  <div className="p-3 border-t">
+                    <Input
+                      type="time"
+                      onChange={(e) => {
+                        const [hours, minutes] = e.target.value.split(':');
+                        const date = field.value || new Date();
+                        date.setHours(parseInt(hours));
+                        date.setMinutes(parseInt(minutes));
+                        field.onChange(new Date(date));
+                      }}
+                      value={format(field.value || new Date(), "HH:mm")}
+                    />
+                  </div>
                 </PopoverContent>
               </Popover>
               <FormMessage />
@@ -169,7 +251,12 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                   min={1}
                   max={6}
                   {...field}
-                  onChange={(e) => field.onChange(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    field.onChange(value);
+                    // Trigger a refetch of rides to update the seats count
+                    queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
+                  }}
                 />
               </FormControl>
               <FormMessage />

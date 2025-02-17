@@ -18,6 +18,7 @@ export const rides = pgTable("rides", {
   hostId: integer("host_id").notNull(),
   origin: text("origin").notNull(),
   destination: text("destination").notNull(),
+  stopPoints: text("stop_points").array().notNull().default([]),
   departureTime: timestamp("departure_time").notNull(),
   transportType: text("transport_type").notNull(),
   seatsAvailable: integer("seats_available").notNull(),
@@ -43,6 +44,7 @@ export const messages = pgTable("messages", {
   attachment: text("attachment")
 });
 
+// Schema for user input validation
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -52,6 +54,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export const insertRideSchema = createInsertSchema(rides).pick({
   origin: true,
   destination: true,
+  stopPoints: true,
   departureTime: true,
   transportType: true,
   seatsAvailable: true
@@ -68,6 +71,7 @@ export const insertMessageSchema = createInsertSchema(messages).pick({
   attachment: true
 });
 
+// Types for TypeScript
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertRide = z.infer<typeof insertRideSchema>;
 export type InsertRequest = z.infer<typeof insertRequestSchema>;

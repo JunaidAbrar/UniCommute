@@ -34,14 +34,25 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm">{ride.origin} → {ride.destination}</span>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Route:</span>
+              </div>
+              <div className="pl-6 space-y-1">
+                <p className="text-sm">From: {ride.origin}</p>
+                {ride.stopPoints && ride.stopPoints.map((stop, index) => (
+                  <p key={index} className="text-sm text-muted-foreground">
+                    Stop {index + 1}: {stop}
+                  </p>
+                ))}
+                <p className="text-sm">To: {ride.destination}</p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">
-                {new Date(ride.departureTime).toLocaleTimeString()}
+                {new Date(ride.departureTime).toLocaleString()}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -53,8 +64,8 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
               <span className="text-sm">{ride.transportType}</span>
             </div>
             <div className="flex gap-2 pt-4">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="flex-1"
                 onClick={() => setLocation(`/chat/${ride.id}`)}
               >
