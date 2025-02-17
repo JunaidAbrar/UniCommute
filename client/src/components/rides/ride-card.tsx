@@ -2,9 +2,12 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { MapPin, Clock, Users, Car } from "lucide-react";
+import { MapPin, Clock, Users, Car, Trash2 } from "lucide-react";
 import type { Ride } from "@shared/schema";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface RideCardProps {
   ride: Ride;
@@ -13,6 +16,25 @@ interface RideCardProps {
 
 export function RideCard({ ride, onSwipe }: RideCardProps) {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const handleDelete = async () => {
+    try {
+      await apiRequest("DELETE", `/api/rides/${ride.id}`);
+      queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
+      toast({
+        title: "Success",
+        description: "Ride deleted successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete ride",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <motion.div
@@ -71,6 +93,15 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
               >
                 Chat
               </Button>
+              {user?.id === ride.hostId && (
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  onClick={handleDelete}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
               <Button className="flex-1" onClick={onSwipe}>
                 Join Ride
               </Button>

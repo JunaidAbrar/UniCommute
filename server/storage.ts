@@ -91,10 +91,12 @@ export class DatabaseStorage implements IStorage {
     if (ride.transportType === "PERSONAL") {
       await db.delete(ridesTable).where(eq(ridesTable.id, rideId));
     } else {
+      // For CNG/UBER rides, transfer ownership if there are other participants
       const participants = ride.participants.filter(id => id !== userId);
       if (participants.length > 0) {
         await this.transferRideOwnership(rideId, participants[0]);
       } else {
+        // If no other participants, delete the ride
         await db.delete(ridesTable).where(eq(ridesTable.id, rideId));
       }
     }
@@ -103,7 +105,10 @@ export class DatabaseStorage implements IStorage {
   async transferRideOwnership(rideId: number, newHostId: number): Promise<Ride> {
     const [updatedRide] = await db
       .update(ridesTable)
-      .set({ hostId: newHostId })
+      .set({ 
+        hostId: newHostId,
+        participants: db.raw(`array_remove(participants, ${newHostId})`)
+      })
       .where(eq(ridesTable.id, rideId))
       .returning();
 
