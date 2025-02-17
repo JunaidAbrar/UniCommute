@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { MapPin, Clock, Users, Car, Trash2 } from "lucide-react";
+import { MapPin, Clock, Users, Car, Trash2, Minus } from "lucide-react";
 import type { Ride } from "@shared/schema";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -28,8 +28,8 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
       toast({
         title: "Success",
-        description: ride.transportType === "PERSONAL" 
-          ? "Ride deleted successfully" 
+        description: ride.transportType === "PERSONAL"
+          ? "Ride deleted successfully"
           : "You've left the ride successfully",
       });
     } catch (error) {
@@ -59,12 +59,29 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
     }
   };
 
+  const handleLeaveRide = async () => {
+    try {
+      await apiRequest("POST", `/api/rides/${ride.id}/leave`);
+      queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
+      toast({
+        title: "Success",
+        description: "You've left the ride successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to leave ride",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <motion.div
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={(e, { offset, velocity }) => {
-        if (offset.x > 100 && velocity.x > 20 && !isHost) {
+        if (offset.x > 100 && velocity.x > 20 && !isHost && !isParticipant) {
           handleJoinRide();
         }
       }}
@@ -116,13 +133,25 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
             </div>
             <div className="flex gap-2 pt-4">
               {isParticipant && (
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setLocation(`/chat/${ride.id}`)}
-                >
-                  Chat
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setLocation(`/chat/${ride.id}`)}
+                  >
+                    Chat
+                  </Button>
+                  {!isHost && (
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      onClick={handleLeaveRide}
+                      title="Leave ride"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                  )}
+                </>
               )}
               {isHost && (
                 <Button

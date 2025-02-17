@@ -48,7 +48,7 @@ export class DatabaseStorage implements IStorage {
       .from(ridesTable)
       .where(
         and(
-          eq(ridesTable.hostId, userId),
+          sql`${ridesTable.participants} @> array[${userId}]::int[]`,
           eq(ridesTable.isActive, true)
         )
       );
@@ -116,7 +116,7 @@ export class DatabaseStorage implements IStorage {
   async transferRideOwnership(rideId: number, newHostId: number): Promise<Ride> {
     const [updatedRide] = await db
       .update(ridesTable)
-      .set({ 
+      .set({
         hostId: newHostId,
         participants: sql`array_remove(${ridesTable.participants}, ${newHostId})`
       })
@@ -141,11 +141,24 @@ export class DatabaseStorage implements IStorage {
     const [updatedRide] = await db
       .update(ridesTable)
       .set({
-        participants: [...(ride.participants || []), userId],
+        participants: sql`array_append(${ridesTable.participants}, ${userId})`
       })
       .where(eq(ridesTable.id, rideId))
       .returning();
 
+    return updatedRide;
+  }
+
+  async removeParticipant(rideId: number, userId: number): Promise<Ride> {
+    const [updatedRide] = await db
+      .update(ridesTable)
+      .set({
+        participants: sql`array_remove(${ridesTable.participants}, ${userId})`
+      })
+      .where(eq(ridesTable.id, rideId))
+      .returning();
+
+    if (!updatedRide) throw new Error("Ride not found");
     return updatedRide;
   }
 

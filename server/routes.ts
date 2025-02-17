@@ -44,6 +44,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/rides/:id/leave", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const ride = await storage.getRide(parseInt(req.params.id));
+      if (!ride) throw new Error("Ride not found");
+
+      // Only allow leaving if user is a participant but not the host
+      if (!ride.participants.includes(req.user.id)) {
+        throw new Error("You are not a participant in this ride");
+      }
+      if (ride.hostId === req.user.id) {
+        throw new Error("As the host, you cannot leave the ride. You can delete it instead.");
+      }
+
+      const updatedRide = await storage.removeParticipant(ride.id, req.user.id);
+      res.json(updatedRide);
+    } catch (error) {
+      res.status(400).json({ 
+        message: error instanceof Error ? error.message : "Failed to leave ride" 
+      });
+    }
+  });
+
   // Requests
   app.post("/api/requests", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
