@@ -49,7 +49,7 @@ export function ChatWindow({ rideId }: { rideId: number }) {
 
   return (
     <div className={cn(
-      "flex flex-col",
+      "flex flex-col relative",
       "h-[calc(100vh-4rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))]",
       "md:h-[calc(100vh-4rem)]",
       "bg-background"
@@ -57,7 +57,10 @@ export function ChatWindow({ rideId }: { rideId: number }) {
       <ScrollArea 
         ref={scrollAreaRef}
         className={cn(
-          "flex-1 p-4",
+          "flex-1",
+          "p-4",
+          "pb-[calc(4rem+env(safe-area-inset-bottom,0px))]", // Account for input height
+          isKeyboardVisible && "pb-24", // Extra padding when keyboard is visible
           "overflow-y-auto",
           "-webkit-overflow-scrolling: touch"
         )}
@@ -98,10 +101,11 @@ export function ChatWindow({ rideId }: { rideId: number }) {
       <form 
         onSubmit={handleSubmit} 
         className={cn(
-          "sticky bottom-0",
+          isKeyboardVisible ? "fixed left-0 right-0 bottom-0" : "sticky bottom-0",
           "p-4 border-t bg-background",
           "pb-[calc(1rem+env(safe-area-inset-bottom,0px))]",
-          isKeyboardVisible && "pb-4"
+          isKeyboardVisible && "pb-4",
+          "z-50" // Ensure it stays above everything
         )}
       >
         <div className="flex gap-2 max-w-2xl mx-auto">
