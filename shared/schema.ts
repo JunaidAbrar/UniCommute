@@ -25,7 +25,8 @@ export const rides = pgTable("rides", {
   transportType: text("transport_type").notNull(),
   seatsAvailable: integer("seats_available").notNull(),
   isActive: boolean("is_active").notNull().default(true),
-  participants: integer("participants").array().notNull().default([])
+  participants: integer("participants").array().notNull().default([]),
+  femaleOnly: boolean("female_only").notNull().default(false)
 });
 
 export const requests = pgTable("requests", {
@@ -60,7 +61,8 @@ export const insertRideSchema = z.object({
   stopPoints: z.array(z.string()).optional(),
   departureTime: z.coerce.date(),
   transportType: transportType,
-  seatsAvailable: z.number().min(1).max(6)
+  seatsAvailable: z.number().min(1).max(6),
+  femaleOnly: z.boolean().default(false)
 });
 
 export const insertRequestSchema = createInsertSchema(requests).pick({

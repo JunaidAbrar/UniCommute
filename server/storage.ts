@@ -62,6 +62,14 @@ export class DatabaseStorage implements IStorage {
       throw new Error("You already have an active ride. Complete or cancel your existing ride first.");
     }
 
+    // Check if it's a female-only ride
+    if (ride.femaleOnly) {
+      const host = await this.getUser(hostId);
+      if (!host || host.gender !== 'female') {
+        throw new Error("Only female users can create female-only rides");
+      }
+    }
+
     // Convert departureTime to ISO string if it's a Date object
     const rideData = {
       ...ride,
@@ -139,6 +147,14 @@ export class DatabaseStorage implements IStorage {
     const hasActive = await this.hasActiveRide(userId);
     if (hasActive) {
       throw new Error("You already have an active ride. Leave your current ride before joining another.");
+    }
+
+    // Check female-only ride restriction
+    if (ride.femaleOnly) {
+      const user = await this.getUser(userId);
+      if (!user || user.gender !== 'female') {
+        throw new Error("This ride is for female participants only");
+      }
     }
 
     // Add participant atomically

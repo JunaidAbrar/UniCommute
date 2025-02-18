@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { MapPin, Clock, Users, Car, Trash2, Minus } from "lucide-react";
 import type { Ride } from "@shared/schema";
 import { useLocation } from "wouter";
@@ -21,6 +22,7 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
 
   const isHost = user?.id === ride.hostId;
   const isParticipant = ride.participants.includes(user?.id ?? -1);
+  const canJoin = !isHost && !isParticipant && (!ride.femaleOnly || user?.gender === 'female');
 
   const handleDelete = async () => {
     try {
@@ -42,6 +44,15 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
   };
 
   const handleJoinRide = async () => {
+    if (ride.femaleOnly && user?.gender !== 'female') {
+      toast({
+        title: "Cannot Join Ride",
+        description: "This ride is for female participants only",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       await apiRequest("POST", "/api/requests", { rideId: ride.id });
       queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
@@ -81,22 +92,32 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={(e, { offset, velocity }) => {
-        if (offset.x > 100 && velocity.x > 20 && !isHost && !isParticipant) {
+        if (offset.x > 100 && velocity.x > 20 && canJoin) {
           handleJoinRide();
         }
       }}
       className="touch-none"
     >
       <Card className="w-full max-w-sm mx-auto">
-        <CardHeader className="flex flex-row items-center gap-4">
-          <Avatar>
-            <AvatarFallback>
-              {isHost ? "H" : "U"}
-            </AvatarFallback>
-          </Avatar>
-          <CardTitle className="text-lg">
-            {isHost ? "Your Ride" : `Ride #${ride.id}`}
-          </CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Avatar>
+              <AvatarFallback>
+                {isHost ? "H" : "U"}
+              </AvatarFallback>
+            </Avatar>
+            <CardTitle className="text-lg">
+              {isHost ? "Your Ride" : `Ride #${ride.id}`}
+            </CardTitle>
+          </div>
+          {ride.femaleOnly && (
+            <Badge 
+              variant="secondary"
+              className="bg-pink-100 text-pink-800 hover:bg-pink-100 hover:text-pink-800"
+            >
+              Female Only
+            </Badge>
+          )}
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -163,7 +184,7 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
                   <Trash2 className="h-4 w-4" />
                 </Button>
               )}
-              {!isParticipant && (
+              {canJoin && (
                 <Button className="flex-1" onClick={handleJoinRide}>
                   Join Ride
                 </Button>

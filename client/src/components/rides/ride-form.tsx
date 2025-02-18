@@ -7,6 +7,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,9 +28,12 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
+import { useAuth } from "@/hooks/use-auth";
 
 export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [stopPoints, setStopPoints] = useState<string[]>([]);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
@@ -61,6 +65,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
       departureTime: new Date(),
       transportType: "PERSONAL",
       seatsAvailable: 3,
+      femaleOnly: false
     },
   });
 
@@ -109,6 +114,8 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
     newStopPoints[index] = value;
     setStopPoints(newStopPoints);
   };
+
+  const showFemaleOnlyToggle = user?.gender === 'female';
 
   return (
     <ScrollArea 
@@ -359,6 +366,31 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
               </FormItem>
             )}
           />
+
+          {showFemaleOnlyToggle && (
+            <FormField
+              control={form.control}
+              name="femaleOnly"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Female Only Ride</FormLabel>
+                    <FormDescription>
+                      Only female participants can join this ride
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      className="data-[state=checked]:bg-primary"
+                      aria-label="Toggle female only ride"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          )}
 
           <Button 
             type="submit" 
