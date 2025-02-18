@@ -71,11 +71,17 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
     },
   });
 
+  const handleSeatChange = (change: number) => {
+    const currentValue = form.getValues("seatsAvailable");
+    const newValue = Math.min(Math.max(currentValue + change, 1), 6);
+    form.setValue("seatsAvailable", newValue);
+  };
+
   async function onSubmit(values: any) {
     try {
       const cleanedStopPoints = stopPoints.filter(point => point.trim() !== "");
 
-      const res = await apiRequest("POST", "/api/rides", {
+      await apiRequest("POST", "/api/rides", {
         ...values,
         stopPoints: cleanedStopPoints,
       });
@@ -94,10 +100,6 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
         description: error instanceof Error ? error.message : "Failed to create ride",
         variant: "destructive",
       });
-
-      if (!(error instanceof Error)) {
-        onSuccess?.();
-      }
     }
   }
 
@@ -119,23 +121,17 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
 
   const showFemaleOnlyToggle = user?.gender === 'female';
 
-  const handleSeatChange = (change: number) => {
-    const currentValue = form.getValues("seatsAvailable");
-    const newValue = Math.min(Math.max(currentValue + change, 1), 6);
-    form.setValue("seatsAvailable", newValue);
-  };
-
   return (
     <div className="relative flex flex-col h-full">
       <ScrollArea className="flex-1 px-6">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-24">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 pb-24">
             <FormField
               control={form.control}
               name="origin"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Pickup Location</FormLabel>
+                <FormItem className="space-y-3">
+                  <FormLabel className="text-base">Pickup Location</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <Input 
@@ -165,64 +161,66 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
             />
 
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <FormLabel>Stop Points (max 3)</FormLabel>
+              <div className="flex items-center justify-between mb-3">
+                <FormLabel className="text-base">Stop Points (max 3)</FormLabel>
                 {stopPoints.length < 3 && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={addStopPoint}
-                    className="h-12"
+                    className="h-10 px-4"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Stop
                   </Button>
                 )}
               </div>
-              {stopPoints.map((stop, index) => (
-                <div key={index} className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Input
-                      type="search"
-                      placeholder={`Stop ${index + 1}`}
-                      value={stop}
-                      onChange={(e) => updateStopPoint(index, e.target.value)}
-                      className="h-12 pl-4 pr-10"
-                      autoComplete="street-address"
-                      autoCapitalize="words"
-                    />
-                    {stop && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
-                        onClick={() => updateStopPoint(index, "")}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
+              <div className="space-y-4">
+                {stopPoints.map((stop, index) => (
+                  <div key={index} className="flex gap-3">
+                    <div className="relative flex-1">
+                      <Input
+                        type="search"
+                        placeholder={`Stop ${index + 1}`}
+                        value={stop}
+                        onChange={(e) => updateStopPoint(index, e.target.value)}
+                        className="h-12 pl-4 pr-10"
+                        autoComplete="street-address"
+                        autoCapitalize="words"
+                      />
+                      {stop && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                          onClick={() => updateStopPoint(index, "")}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => removeStopPoint(index)}
+                      className="h-12 w-12 flex-shrink-0"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => removeStopPoint(index)}
-                    className="h-12 w-12"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
             <FormField
               control={form.control}
               name="destination"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Destination</FormLabel>
+                <FormItem className="space-y-3">
+                  <FormLabel className="text-base">Destination</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <Input 
@@ -255,8 +253,8 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
               control={form.control}
               name="departureTime"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Departure Time</FormLabel>
+                <FormItem className="space-y-3">
+                  <FormLabel className="text-base">Departure Time</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -315,8 +313,8 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
               control={form.control}
               name="transportType"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Transport Type</FormLabel>
+                <FormItem className="space-y-3">
+                  <FormLabel className="text-base">Transport Type</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger className="h-12">
@@ -340,8 +338,8 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
               control={form.control}
               name="seatsAvailable"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Available Seats</FormLabel>
+                <FormItem className="space-y-3">
+                  <FormLabel className="text-base">Available Seats</FormLabel>
                   <FormControl>
                     <div className="flex items-center gap-4">
                       {isMobile ? (
@@ -397,8 +395,8 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                 control={form.control}
                 name="femaleOnly"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 space-x-4">
+                    <div className="space-y-1">
                       <FormLabel className="text-base">Female Only Ride</FormLabel>
                       <FormDescription>
                         Only female participants can join this ride
