@@ -126,7 +126,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
   };
 
   return (
-    <div className="relative flex flex-col h-[90vh] sm:h-full">
+    <div className="relative flex flex-col h-full">
       <ScrollArea className="flex-1 px-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-24">
@@ -420,7 +420,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
         </Form>
       </ScrollArea>
 
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-background border-t">
+      <div className="sticky bottom-0 left-0 right-0 p-6 bg-background border-t">
         <Button 
           type="submit"
           onClick={form.handleSubmit(onSubmit)}
