@@ -42,11 +42,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUsersByIds(ids: number[]): Promise<User[]> {
-    // Using a WHERE IN clause without in_ operator
+    // Using unnest for array comparison in PostgreSQL
     return await db
       .select()
       .from(users)
-      .where(sql`${users.id} = ANY(${ids})`);
+      .where(sql`${users.id} = ANY(ARRAY[${sql.join(ids, ', ')}])`);
   }
 
   // Ride Operations
