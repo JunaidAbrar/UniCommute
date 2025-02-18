@@ -23,25 +23,25 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const { user } = useAuth();
-  const { data: rides = [] } = useQuery<(Ride & { host: { username: string; university: string } })[]>({
+  const { data: rides = [] } = useQuery<
+    (Ride & { host: { username: string; university: string } })[]
+  >({
     queryKey: ["/api/rides"],
   });
 
   // Separate user's active ride and other rides
   const { activeRide, otherRides } = useMemo(() => {
-    const active = rides.find(ride => 
-      ride.participants.includes(user?.id ?? -1) && ride.isActive
+    const active = rides.find(
+      (ride) => ride.participants.includes(user?.id ?? -1) && ride.isActive,
     );
-    const others = rides.filter(ride => 
-      ride.id !== active?.id
-    );
+    const others = rides.filter((ride) => ride.id !== active?.id);
     return { activeRide: active, otherRides: others };
   }, [rides, user?.id]);
 
   // Debounced search handler
   const debouncedSetSearchQuery = useCallback(
     debounce((value: string) => setSearchQuery(value), 300),
-    []
+    [],
   );
 
   // Filter rides based on search query
@@ -49,9 +49,7 @@ export default function HomePage() {
     const query = searchQuery.toLowerCase().trim();
     if (!query) {
       // If no search query, return active ride first, then others
-      return activeRide 
-        ? [activeRide, ...otherRides]
-        : otherRides;
+      return activeRide ? [activeRide, ...otherRides] : otherRides;
     }
 
     // Filter function with ride number support
@@ -119,17 +117,20 @@ export default function HomePage() {
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
         <Input
-          type="search"
+          value={searchQuery}
           onChange={(e) => debouncedSetSearchQuery(e.target.value)}
-          className="pl-9 pr-9 h-12"
-          placeholder="Search by ride number (e.g. Ride#43) or location..."
+          className="pl-9 pr-9 h-12 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+          placeholder="Search by Ride Number or Location..."
         />
         {searchQuery && (
           <Button
             variant="ghost"
             size="icon"
             className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8"
-            onClick={() => setSearchQuery("")}
+            onClick={() => {
+              setSearchQuery("");
+              debouncedSetSearchQuery("");
+            }}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -145,7 +146,9 @@ export default function HomePage() {
               exit={{ opacity: 0, y: -20 }}
               className="text-center py-8 text-muted-foreground"
             >
-              {searchQuery.trim() ? "No rides found matching your search" : "No rides available"}
+              {searchQuery.trim()
+                ? "No rides found matching your search"
+                : "No rides available"}
             </motion.div>
           ) : (
             filteredRides.map((ride) => (
@@ -156,10 +159,7 @@ export default function HomePage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
               >
-                <RideCard
-                  ride={ride}
-                  onSwipe={() => handleJoinRide(ride.id)}
-                />
+                <RideCard ride={ride} onSwipe={() => handleJoinRide(ride.id)} />
               </motion.div>
             ))
           )}
