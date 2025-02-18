@@ -128,5 +128,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add new route for kicking members
+  app.post("/api/rides/:rideId/kick/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    const rideId = parseInt(req.params.rideId);
+    const userIdToKick = parseInt(req.params.userId);
+
+    try {
+      const ride = await storage.getRide(rideId);
+      if (!ride) throw new Error("Ride not found");
+
+      // Only ride host can kick members
+      if (ride.hostId !== req.user.id) {
+        throw new Error("Only the ride host can remove members");
+      }
+
+      // Cannot kick the host
+      if (userIdToKick === ride.hostId) {
+        throw new Error("Cannot remove the ride host");
+      }
+
+      // Check if user is actually in the ride
+      if (!ride.participants.includes(userIdToKick)) {
+        throw new Error("User is not a participant in this ride");
+      }
+
+      const updatedRide = await storage.removeParticipant(rideId, userIdToKick);
+      res.json(updatedRide);
+    } catch (error) {
+      res.status(400).json({ 
+        message: error instanceof Error ? error.message : "Failed to remove member" 
+      });
+    }
+  });
+
   return httpServer;
 }

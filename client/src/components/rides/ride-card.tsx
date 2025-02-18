@@ -3,12 +3,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Clock, Users, Car, Trash2, Minus } from "lucide-react";
+import { MapPin, Clock, Users, Car, Trash2, Minus, UserX } from "lucide-react";
 import type { Ride } from "@shared/schema";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface RideCardProps {
   ride: Ride;
@@ -87,6 +98,23 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
     }
   };
 
+  const handleKickMember = async (userId: number) => {
+    try {
+      await apiRequest("POST", `/api/rides/${ride.id}/kick/${userId}`);
+      queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
+      toast({
+        title: "Success",
+        description: "Member removed from ride",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to remove member",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <motion.div
       drag="x"
@@ -111,7 +139,7 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
             </CardTitle>
           </div>
           {ride.femaleOnly && (
-            <Badge 
+            <Badge
               variant="secondary"
               className="bg-pink-100 text-pink-800 hover:bg-pink-100 hover:text-pink-800"
             >
@@ -152,6 +180,54 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
               <Car className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">{ride.transportType}</span>
             </div>
+            {isHost && (
+              <div className="border-t pt-4 mt-4">
+                <h4 className="text-sm font-medium mb-2">Participants</h4>
+                <div className="space-y-2">
+                  {ride.participants
+                    .filter(id => id !== ride.hostId)
+                    .map((participantId) => (
+                      <div key={participantId} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback>U</AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm">User #{participantId}</span>
+                        </div>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                            >
+                              <UserX className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remove Participant</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to remove this participant from the ride?
+                                This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleKickMember(participantId)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Remove
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
             <div className="flex gap-2 pt-4">
               {isParticipant && (
                 <>
