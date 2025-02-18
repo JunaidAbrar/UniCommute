@@ -71,17 +71,11 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
     },
   });
 
-  const handleSeatChange = (change: number) => {
-    const currentValue = form.getValues("seatsAvailable");
-    const newValue = Math.min(Math.max(currentValue + change, 1), 6);
-    form.setValue("seatsAvailable", newValue);
-  };
-
   async function onSubmit(values: any) {
     try {
       const cleanedStopPoints = stopPoints.filter(point => point.trim() !== "");
 
-      await apiRequest("POST", "/api/rides", {
+      const res = await apiRequest("POST", "/api/rides", {
         ...values,
         stopPoints: cleanedStopPoints,
       });
@@ -100,6 +94,10 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
         description: error instanceof Error ? error.message : "Failed to create ride",
         variant: "destructive",
       });
+
+      if (!(error instanceof Error)) {
+        onSuccess?.();
+      }
     }
   }
 
@@ -121,23 +119,29 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
 
   const showFemaleOnlyToggle = user?.gender === 'female';
 
+  const handleSeatChange = (change: number) => {
+    const currentValue = form.getValues("seatsAvailable");
+    const newValue = Math.min(Math.max(currentValue + change, 1), 6);
+    form.setValue("seatsAvailable", newValue);
+  };
+
   return (
-    <div className="relative flex flex-col h-[90vh] sm:h-full">
-      <ScrollArea className="flex-1 px-6 pb-24">
+    <div className="relative flex flex-col h-full">
+      <ScrollArea className="flex-1 px-6">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-24">
             <FormField
               control={form.control}
               name="origin"
               render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-base">Pickup Location</FormLabel>
+                <FormItem>
+                  <FormLabel>Pickup Location</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <Input 
                         type="search"
                         placeholder="Enter pickup location"
-                        className="h-12 pl-4 pr-10 w-full border-input focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        className="h-12 pl-4 pr-10"
                         autoComplete="street-address"
                         autoCapitalize="words"
                         {...field}
@@ -161,72 +165,70 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
             />
 
             <div className="space-y-4">
-              <div className="flex items-center justify-between mb-3">
-                <FormLabel className="text-base">Stop Points (max 3)</FormLabel>
+              <div className="flex items-center justify-between">
+                <FormLabel>Stop Points (max 3)</FormLabel>
                 {stopPoints.length < 3 && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={addStopPoint}
-                    className="h-10 px-4"
+                    className="h-12"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Stop
                   </Button>
                 )}
               </div>
-              <div className="space-y-4">
-                {stopPoints.map((stop, index) => (
-                  <div key={index} className="flex gap-3">
-                    <div className="relative flex-1">
-                      <Input
-                        type="search"
-                        placeholder={`Stop ${index + 1}`}
-                        value={stop}
-                        onChange={(e) => updateStopPoint(index, e.target.value)}
-                        className="h-12 pl-4 pr-10 w-full border-input focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                        autoComplete="street-address"
-                        autoCapitalize="words"
-                      />
-                      {stop && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
-                          onClick={() => updateStopPoint(index, "")}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => removeStopPoint(index)}
-                      className="h-12 w-12 flex-shrink-0"
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
+              {stopPoints.map((stop, index) => (
+                <div key={index} className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      type="search"
+                      placeholder={`Stop ${index + 1}`}
+                      value={stop}
+                      onChange={(e) => updateStopPoint(index, e.target.value)}
+                      className="h-12 pl-4 pr-10"
+                      autoComplete="street-address"
+                      autoCapitalize="words"
+                    />
+                    {stop && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                        onClick={() => updateStopPoint(index, "")}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
-                ))}
-              </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => removeStopPoint(index)}
+                    className="h-12 w-12"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
             </div>
 
             <FormField
               control={form.control}
               name="destination"
               render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-base">Destination</FormLabel>
+                <FormItem>
+                  <FormLabel>Destination</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <Input 
                         type="search"
                         placeholder="Enter destination"
-                        className="h-12 pl-4 pr-10 w-full border-input focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        className="h-12 pl-4 pr-10"
                         autoComplete="street-address"
                         autoCapitalize="words"
                         {...field}
@@ -253,15 +255,15 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
               control={form.control}
               name="departureTime"
               render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-base">Departure Time</FormLabel>
+                <FormItem>
+                  <FormLabel>Departure Time</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
                           variant="outline"
                           className={cn(
-                            "w-full h-12 pl-4 text-left font-normal border-input focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                            "w-full h-12 pl-4 text-left font-normal",
                             !field.value && "text-muted-foreground"
                           )}
                         >
@@ -313,11 +315,11 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
               control={form.control}
               name="transportType"
               render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-base">Transport Type</FormLabel>
+                <FormItem>
+                  <FormLabel>Transport Type</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
-                      <SelectTrigger className="h-12 border-input focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                      <SelectTrigger className="h-12">
                         <SelectValue placeholder="Select transport type" />
                       </SelectTrigger>
                     </FormControl>
@@ -338,8 +340,8 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
               control={form.control}
               name="seatsAvailable"
               render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-base">Available Seats</FormLabel>
+                <FormItem>
+                  <FormLabel>Available Seats</FormLabel>
                   <FormControl>
                     <div className="flex items-center gap-4">
                       {isMobile ? (
@@ -350,7 +352,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                             size="icon"
                             onClick={() => handleSeatChange(-1)}
                             disabled={field.value <= 1}
-                            className="h-12 w-12 border-input focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            className="h-12 w-12"
                           >
                             <Minus className="h-4 w-4" />
                           </Button>
@@ -363,7 +365,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                             size="icon"
                             onClick={() => handleSeatChange(1)}
                             disabled={field.value >= 6}
-                            className="h-12 w-12 border-input focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            className="h-12 w-12"
                           >
                             <Plus className="h-4 w-4" />
                           </Button>
@@ -373,7 +375,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                           type="number"
                           min={1}
                           max={6}
-                          className="h-12 w-full border-input focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          className="h-12"
                           {...field}
                           onChange={(e) => {
                             const value = parseInt(e.target.value);
@@ -395,8 +397,8 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                 control={form.control}
                 name="femaleOnly"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 space-x-4 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-                    <div className="space-y-1">
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
                       <FormLabel className="text-base">Female Only Ride</FormLabel>
                       <FormDescription>
                         Only female participants can join this ride
@@ -418,7 +420,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
         </Form>
       </ScrollArea>
 
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-background border-t z-50 sm:sticky">
+      <div className="sticky bottom-0 left-0 right-0 p-6 bg-background border-t">
         <Button 
           type="submit"
           onClick={form.handleSubmit(onSubmit)}
