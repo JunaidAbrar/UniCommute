@@ -122,300 +122,302 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
   const showFemaleOnlyToggle = user?.gender === 'female';
 
   return (
-    <div className="relative flex flex-col h-full">
-      <ScrollArea className="flex-1 px-6">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 pb-24">
-            <FormField
-              control={form.control}
-              name="origin"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-base">Pickup Location</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input 
-                        type="search"
-                        placeholder="Enter pickup location"
-                        className="h-12 pl-4 pr-10"
-                        autoComplete="street-address"
-                        autoCapitalize="words"
-                        {...field}
-                      />
-                      {field.value && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
-                          onClick={() => field.onChange("")}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between mb-3">
-                <FormLabel className="text-base">Stop Points (max 3)</FormLabel>
-                {stopPoints.length < 3 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addStopPoint}
-                    className="h-10 px-4"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Stop
-                  </Button>
-                )}
-              </div>
-              <div className="space-y-4">
-                {stopPoints.map((stop, index) => (
-                  <div key={index} className="flex gap-3">
-                    <div className="relative flex-1">
-                      <Input
-                        type="search"
-                        placeholder={`Stop ${index + 1}`}
-                        value={stop}
-                        onChange={(e) => updateStopPoint(index, e.target.value)}
-                        className="h-12 pl-4 pr-10"
-                        autoComplete="street-address"
-                        autoCapitalize="words"
-                      />
-                      {stop && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
-                          onClick={() => updateStopPoint(index, "")}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => removeStopPoint(index)}
-                      className="h-12 w-12 flex-shrink-0"
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <FormField
-              control={form.control}
-              name="destination"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-base">Destination</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input 
-                        type="search"
-                        placeholder="Enter destination"
-                        className="h-12 pl-4 pr-10"
-                        autoComplete="street-address"
-                        autoCapitalize="words"
-                        {...field}
-                      />
-                      {field.value && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
-                          onClick={() => field.onChange("")}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="departureTime"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-base">Departure Time</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full h-12 pl-4 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, "PPP p")
-                          ) : (
-                            <span>Pick a date and time</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => {
-                          if (date) {
-                            const currentTime = field.value;
-                            date.setHours(currentTime.getHours());
-                            date.setMinutes(currentTime.getMinutes());
-                            field.onChange(date);
-                          }
-                        }}
-                        initialFocus
-                      />
-                      <div className="p-3 border-t">
-                        <Input
-                          type="time"
-                          onChange={(e) => {
-                            const [hours, minutes] = e.target.value.split(':');
-                            const date = new Date(field.value);
-                            date.setHours(parseInt(hours));
-                            date.setMinutes(parseInt(minutes));
-                            field.onChange(date);
-                          }}
-                          value={format(field.value, "HH:mm")}
-                          className="h-12"
-                        />
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="transportType"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-base">Transport Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger className="h-12">
-                        <SelectValue placeholder="Select transport type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {transportType.options.map((type) => (
-                        <SelectItem key={type} value={type} className="h-12">
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="seatsAvailable"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel className="text-base">Available Seats</FormLabel>
-                  <FormControl>
-                    <div className="flex items-center gap-4">
-                      {isMobile ? (
-                        <>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleSeatChange(-1)}
-                            disabled={field.value <= 1}
-                            className="h-12 w-12"
-                          >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <div className="flex-1 text-center text-lg font-medium">
-                            {field.value}
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleSeatChange(1)}
-                            disabled={field.value >= 6}
-                            className="h-12 w-12"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </>
-                      ) : (
-                        <Input
-                          type="number"
-                          min={1}
-                          max={6}
-                          className="h-12"
-                          {...field}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value);
-                            if (!isNaN(value) && value >= 1 && value <= 6) {
-                              field.onChange(value);
-                            }
-                          }}
-                        />
-                      )}
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {showFemaleOnlyToggle && (
+    <div className="relative flex flex-col h-full overflow-hidden">
+      <ScrollArea className="flex-1">
+        <div className="px-6">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 pb-24">
               <FormField
                 control={form.control}
-                name="femaleOnly"
+                name="origin"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 space-x-4">
-                    <div className="space-y-1">
-                      <FormLabel className="text-base">Female Only Ride</FormLabel>
-                      <FormDescription>
-                        Only female participants can join this ride
-                      </FormDescription>
-                    </div>
+                  <FormItem className="space-y-3">
+                    <FormLabel className="text-base">Pickup Location</FormLabel>
                     <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        className="data-[state=checked]:bg-primary"
-                        aria-label="Toggle female only ride"
-                      />
+                      <div className="relative">
+                        <Input 
+                          type="search"
+                          placeholder="Enter pickup location"
+                          className="h-12 pl-4 pr-10 w-full border-input focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          autoComplete="street-address"
+                          autoCapitalize="words"
+                          {...field}
+                        />
+                        {field.value && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                            onClick={() => field.onChange("")}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
-            )}
-          </form>
-        </Form>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-3">
+                  <FormLabel className="text-base">Stop Points (max 3)</FormLabel>
+                  {stopPoints.length < 3 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addStopPoint}
+                      className="h-10 px-4"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Stop
+                    </Button>
+                  )}
+                </div>
+                <div className="space-y-4">
+                  {stopPoints.map((stop, index) => (
+                    <div key={index} className="flex gap-3">
+                      <div className="relative flex-1">
+                        <Input
+                          type="search"
+                          placeholder={`Stop ${index + 1}`}
+                          value={stop}
+                          onChange={(e) => updateStopPoint(index, e.target.value)}
+                          className="h-12 pl-4 pr-10 w-full border-input focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          autoComplete="street-address"
+                          autoCapitalize="words"
+                        />
+                        {stop && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                            onClick={() => updateStopPoint(index, "")}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => removeStopPoint(index)}
+                        className="h-12 w-12 flex-shrink-0"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <FormField
+                control={form.control}
+                name="destination"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel className="text-base">Destination</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input 
+                          type="search"
+                          placeholder="Enter destination"
+                          className="h-12 pl-4 pr-10 w-full border-input focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          autoComplete="street-address"
+                          autoCapitalize="words"
+                          {...field}
+                        />
+                        {field.value && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                            onClick={() => field.onChange("")}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="departureTime"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel className="text-base">Departure Time</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full h-12 pl-4 text-left font-normal border-input focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP p")
+                            ) : (
+                              <span>Pick a date and time</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={(date) => {
+                            if (date) {
+                              const currentTime = field.value;
+                              date.setHours(currentTime.getHours());
+                              date.setMinutes(currentTime.getMinutes());
+                              field.onChange(date);
+                            }
+                          }}
+                          initialFocus
+                        />
+                        <div className="p-3 border-t">
+                          <Input
+                            type="time"
+                            onChange={(e) => {
+                              const [hours, minutes] = e.target.value.split(':');
+                              const date = new Date(field.value);
+                              date.setHours(parseInt(hours));
+                              date.setMinutes(parseInt(minutes));
+                              field.onChange(date);
+                            }}
+                            value={format(field.value, "HH:mm")}
+                            className="h-12"
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="transportType"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel className="text-base">Transport Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="h-12 border-input focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                          <SelectValue placeholder="Select transport type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {transportType.options.map((type) => (
+                          <SelectItem key={type} value={type} className="h-12">
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="seatsAvailable"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel className="text-base">Available Seats</FormLabel>
+                    <FormControl>
+                      <div className="flex items-center gap-4">
+                        {isMobile ? (
+                          <>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleSeatChange(-1)}
+                              disabled={field.value <= 1}
+                              className="h-12 w-12 border-input focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <div className="flex-1 text-center text-lg font-medium">
+                              {field.value}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleSeatChange(1)}
+                              disabled={field.value >= 6}
+                              className="h-12 w-12 border-input focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Input
+                            type="number"
+                            min={1}
+                            max={6}
+                            className="h-12 w-full border-input focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            {...field}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value);
+                              if (!isNaN(value) && value >= 1 && value <= 6) {
+                                field.onChange(value);
+                              }
+                            }}
+                          />
+                        )}
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {showFemaleOnlyToggle && (
+                <FormField
+                  control={form.control}
+                  name="femaleOnly"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 space-x-4 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                      <div className="space-y-1">
+                        <FormLabel className="text-base">Female Only Ride</FormLabel>
+                        <FormDescription>
+                          Only female participants can join this ride
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          className="data-[state=checked]:bg-primary"
+                          aria-label="Toggle female only ride"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
+            </form>
+          </Form>
+        </div>
       </ScrollArea>
 
       <div className="sticky bottom-0 left-0 right-0 p-6 bg-background border-t">
