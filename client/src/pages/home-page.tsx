@@ -16,27 +16,58 @@ import { Ride } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const { data: rides = [] } = useQuery<Ride[]>({
+  const { user } = useAuth();
+  const { data: rides = [] } = useQuery<(Ride & { host: { username: string; university: string } })[]>({
     queryKey: ["/api/rides"],
   });
 
-  const filteredRides = useMemo(() => {
-    if (!searchQuery.trim()) return rides;
+  // Separate user's active ride and other rides
+  const { activeRide, otherRides } = useMemo(() => {
+    const active = rides.find(ride => 
+      ride.participants.includes(user?.id ?? -1) && ride.isActive
+    );
+    const others = rides.filter(ride => 
+      ride.id !== active?.id
+    );
+    return { activeRide: active, otherRides: others };
+  }, [rides, user?.id]);
 
-    const query = searchQuery.toLowerCase();
-    return rides.filter((ride) => {
+  // Filter rides based on search query
+  const filteredRides = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) {
+      // If no search query, return active ride first, then others
+      return activeRide 
+        ? [activeRide, ...otherRides]
+        : otherRides;
+    }
+
+    // Filter function
+    const matchesSearch = (ride: Ride) => {
       const searchableText = `
         ${ride.origin.toLowerCase()}
         ${ride.destination.toLowerCase()}
         ${ride.stopPoints.join(" ").toLowerCase()}
       `;
       return searchableText.includes(query);
-    });
-  }, [rides, searchQuery]);
+    };
+
+    // If active ride matches search, include it first
+    const matches = [];
+    if (activeRide && matchesSearch(activeRide)) {
+      matches.push(activeRide);
+    }
+
+    // Add other matching rides
+    matches.push(...otherRides.filter(matchesSearch));
+
+    return matches;
+  }, [activeRide, otherRides, searchQuery]);
 
   const handleJoinRide = async (rideId: number) => {
     try {
