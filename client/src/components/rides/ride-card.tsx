@@ -127,21 +127,27 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
       className="touch-none"
     >
       <Card className="w-full max-w-sm mx-auto">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-4">
+        <CardHeader className="flex flex-row items-start justify-between gap-2 p-4">
+          <div className="flex items-start gap-3 min-w-0">
             <Avatar>
               <AvatarFallback>
                 {isHost ? "H" : "U"}
               </AvatarFallback>
             </Avatar>
-            <CardTitle className="text-lg">
-              {isHost ? "Your Ride" : `Ride #${ride.id}`}
-            </CardTitle>
+            <div className="min-w-0">
+              <CardTitle className="text-lg truncate">
+                {isHost ? "Your Ride" : `Ride #${ride.id}`}
+              </CardTitle>
+              <div className="text-sm text-muted-foreground space-y-0.5">
+                <p className="truncate">Host: {user?.username || "Unknown"}</p>
+                <p className="truncate">University: {user?.university || "N/A"}</p>
+              </div>
+            </div>
           </div>
           {ride.femaleOnly && (
             <Badge
               variant="secondary"
-              className="bg-pink-100 text-pink-800 hover:bg-pink-100 hover:text-pink-800"
+              className="bg-pink-100 text-pink-800 hover:bg-pink-100 hover:text-pink-800 shrink-0"
             >
               Female Only
             </Badge>
