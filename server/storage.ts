@@ -46,7 +46,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(users)
-      .where(sql`${users.id} = ANY(ARRAY[${sql.join(ids, ', ')}])`);
+      .where(sql`${users.id} = ANY(ARRAY[${sql.join(ids, ', ')}]::int[])`);
   }
 
   // Ride Operations
