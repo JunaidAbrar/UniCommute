@@ -94,12 +94,32 @@ export class DatabaseStorage implements IStorage {
     return ride;
   }
 
-  async getActiveRides(): Promise<Ride[]> {
-    return await db
+  async getRideWithHost(id: number): Promise<(Ride & { host: User }) | undefined> {
+    const [ride] = await db.select().from(ridesTable).where(eq(ridesTable.id, id));
+    if (!ride) return undefined;
+
+    const host = await this.getUser(ride.hostId);
+    if (!host) return undefined;
+
+    return { ...ride, host };
+  }
+
+  async getActiveRides(): Promise<(Ride & { host: User })[]> {
+    const rides = await db
       .select()
       .from(ridesTable)
       .where(eq(ridesTable.isActive, true))
       .orderBy(ridesTable.departureTime);
+
+    const ridesWithHosts = await Promise.all(
+      rides.map(async (ride) => {
+        const host = await this.getUser(ride.hostId);
+        if (!host) throw new Error(`Host not found for ride ${ride.id}`);
+        return { ...ride, host };
+      })
+    );
+
+    return ridesWithHosts;
   }
 
   async deleteRide(rideId: number, userId: number): Promise<void> {

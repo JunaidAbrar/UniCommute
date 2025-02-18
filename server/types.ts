@@ -3,7 +3,7 @@ import type { Store } from "express-session";
 
 export interface IStorage {
   sessionStore: Store;
-  
+
   // User Operations
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -12,7 +12,8 @@ export interface IStorage {
   // Ride Operations
   createRide(hostId: number, ride: InsertRide): Promise<Ride>;
   getRide(id: number): Promise<Ride | undefined>;
-  getActiveRides(): Promise<Ride[]>;
+  getRideWithHost(id: number): Promise<(Ride & { host: User }) | undefined>;
+  getActiveRides(): Promise<(Ride & { host: User })[]>;
 
   // Request Operations
   createRequest(userId: number, request: InsertRequest): Promise<Request>;

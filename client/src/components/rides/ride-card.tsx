@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface RideCardProps {
-  ride: Ride;
+  ride: Ride & { host: { username: string; university: string } };
   onSwipe?: () => void;
 }
 
@@ -127,25 +127,38 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
       className="touch-none"
     >
       <Card className="w-full max-w-sm mx-auto">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Avatar>
-              <AvatarFallback>
-                {isHost ? "H" : "U"}
-              </AvatarFallback>
-            </Avatar>
-            <CardTitle className="text-lg">
-              {isHost ? "Your Ride" : `Ride #${ride.id}`}
-            </CardTitle>
+        <CardHeader className="space-y-3">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <Avatar>
+                <AvatarFallback>
+                  {ride.host.username.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="space-y-1">
+                <CardTitle className="text-lg leading-none">
+                  {isHost ? "Your Ride" : `Ride #${ride.id}`}
+                </CardTitle>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium leading-none">
+                    {ride.host.username}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {ride.host.university}
+                  </p>
+                </div>
+              </div>
+            </div>
+            {ride.femaleOnly && (
+              <Badge
+                variant="secondary"
+                className="bg-pink-100 text-pink-800 hover:bg-pink-100 hover:text-pink-800"
+              >
+                Female Only
+              </Badge>
+            )}
           </div>
-          {ride.femaleOnly && (
-            <Badge
-              variant="secondary"
-              className="bg-pink-100 text-pink-800 hover:bg-pink-100 hover:text-pink-800"
-            >
-              Female Only
-            </Badge>
-          )}
+          <div className="h-px bg-border" />
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
