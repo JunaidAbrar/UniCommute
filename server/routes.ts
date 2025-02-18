@@ -29,8 +29,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/rides", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const ridesWithCreators = await storage.getActiveRidesWithCreators();
-    res.json(ridesWithCreators);
+    const rides = await storage.getActiveRides();
+    res.json(rides);
   });
 
   app.delete("/api/rides/:id", async (req, res) => {

@@ -12,20 +12,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Plus, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { Ride, User } from "@shared/schema";
+import { Ride } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-interface RideWithCreator {
-  ride: Ride;
-  creator: User;
-}
-
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const { data: rides = [] } = useQuery<RideWithCreator[]>({
+  const { data: rides = [] } = useQuery<Ride[]>({
     queryKey: ["/api/rides"],
   });
 
@@ -33,13 +28,11 @@ export default function HomePage() {
     if (!searchQuery.trim()) return rides;
 
     const query = searchQuery.toLowerCase();
-    return rides.filter(({ ride, creator }) => {
+    return rides.filter((ride) => {
       const searchableText = `
         ${ride.origin.toLowerCase()}
         ${ride.destination.toLowerCase()}
         ${ride.stopPoints.join(" ").toLowerCase()}
-        ${creator.username.toLowerCase()}
-        ${creator.university.toLowerCase()}
       `;
       return searchableText.includes(query);
     });
@@ -89,7 +82,7 @@ export default function HomePage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-9 h-12"
-          placeholder="Search rides, locations, or users..."
+          placeholder="Search origin, destination or stops..."
         />
       </div>
 
@@ -105,17 +98,17 @@ export default function HomePage() {
               {searchQuery.trim() ? "No rides found matching your search" : "No rides available"}
             </motion.div>
           ) : (
-            filteredRides.map((rideWithCreator) => (
+            filteredRides.map((ride) => (
               <motion.div
-                key={rideWithCreator.ride.id}
+                key={ride.id}
                 layout
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
               >
                 <RideCard
-                  ride={rideWithCreator}
-                  onSwipe={() => handleJoinRide(rideWithCreator.ride.id)}
+                  ride={ride}
+                  onSwipe={() => handleJoinRide(ride.id)}
                 />
               </motion.div>
             ))

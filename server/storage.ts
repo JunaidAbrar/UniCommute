@@ -41,39 +41,7 @@ export class DatabaseStorage implements IStorage {
     return newUser;
   }
 
-  async getUsersByIds(ids: number[]): Promise<User[]> {
-    // Using unnest for array comparison in PostgreSQL
-    return await db
-      .select()
-      .from(users)
-      .where(sql`${users.id} = ANY(ARRAY[${sql.join(ids, ', ')}]::int[])`);
-  }
-
   // Ride Operations
-  async getRideWithCreator(id: number): Promise<{ ride: Ride; creator: User } | undefined> {
-    const ride = await this.getRide(id);
-    if (!ride) return undefined;
-
-    const creator = await this.getUser(ride.hostId);
-    if (!creator) return undefined;
-
-    return { ride, creator };
-  }
-
-  async getActiveRidesWithCreators(): Promise<{ ride: Ride; creator: User }[]> {
-    const rides = await this.getActiveRides();
-    // Convert Set to Array using Array.from()
-    const hostIds = Array.from(new Set(rides.map(ride => ride.hostId)));
-    const hosts = await this.getUsersByIds(hostIds);
-
-    const hostsMap = new Map(hosts.map(host => [host.id, host]));
-
-    return rides.map(ride => ({
-      ride,
-      creator: hostsMap.get(ride.hostId)!
-    }));
-  }
-
   async hasActiveRide(userId: number): Promise<boolean> {
     const activeRides = await db
       .select()
