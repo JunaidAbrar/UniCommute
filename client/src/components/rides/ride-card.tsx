@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Clock, Users, Car, Trash2, Minus, UserX } from "lucide-react";
 import type { Ride } from "@shared/schema";
+import type { User } from "@shared/schema"; // Added import for User type
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -22,11 +23,11 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface RideCardProps {
-  ride: Ride;
+  ride: { ride: Ride; creator: User };
   onSwipe?: () => void;
 }
 
-export function RideCard({ ride, onSwipe }: RideCardProps) {
+export function RideCard({ ride: { ride, creator }, onSwipe }: RideCardProps) {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -127,25 +128,32 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
       className="touch-none"
     >
       <Card className="w-full max-w-sm mx-auto">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Avatar>
-              <AvatarFallback>
-                {isHost ? "H" : "U"}
-              </AvatarFallback>
-            </Avatar>
-            <CardTitle className="text-lg">
-              {isHost ? "Your Ride" : `Ride #${ride.id}`}
-            </CardTitle>
+        <CardHeader className="space-y-2">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-4">
+              <Avatar>
+                <AvatarFallback>
+                  {creator.username.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="space-y-1">
+                <CardTitle className="text-lg leading-none line-clamp-1">
+                  {isHost ? "Your Ride" : `${creator.username}'s Ride #${ride.id}`}
+                </CardTitle>
+                <p className="text-sm text-muted-foreground line-clamp-1">
+                  {creator.university}
+                </p>
+              </div>
+            </div>
+            {ride.femaleOnly && (
+              <Badge
+                variant="secondary"
+                className="bg-pink-100 text-pink-800 hover:bg-pink-100 hover:text-pink-800 shrink-0"
+              >
+                Female Only
+              </Badge>
+            )}
           </div>
-          {ride.femaleOnly && (
-            <Badge
-              variant="secondary"
-              className="bg-pink-100 text-pink-800 hover:bg-pink-100 hover:text-pink-800"
-            >
-              Female Only
-            </Badge>
-          )}
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
