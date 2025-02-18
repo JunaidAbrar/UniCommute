@@ -10,13 +10,14 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Ride } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
+import { debounce } from "@/lib/utils";
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,6 +38,12 @@ export default function HomePage() {
     return { activeRide: active, otherRides: others };
   }, [rides, user?.id]);
 
+  // Debounced search handler
+  const debouncedSetSearchQuery = useCallback(
+    debounce((value: string) => setSearchQuery(value), 300),
+    []
+  );
+
   // Filter rides based on search query
   const filteredRides = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -47,9 +54,12 @@ export default function HomePage() {
         : otherRides;
     }
 
-    // Filter function
+    // Filter function with ride number support
     const matchesSearch = (ride: Ride) => {
+      const rideNumber = `ride#${ride.id}`;
       const searchableText = `
+        ${rideNumber}
+        ${ride.id}
         ${ride.origin.toLowerCase()}
         ${ride.destination.toLowerCase()}
         ${ride.stopPoints.join(" ").toLowerCase()}
@@ -107,14 +117,23 @@ export default function HomePage() {
       </header>
 
       <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
         <Input
           type="search"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9 h-12"
-          placeholder="Search origin, destination or stops..."
+          onChange={(e) => debouncedSetSearchQuery(e.target.value)}
+          className="pl-9 pr-9 h-12"
+          placeholder="Search by ride number (e.g. Ride#43) or location..."
         />
+        {searchQuery && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8"
+            onClick={() => setSearchQuery("")}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <AnimatePresence mode="popLayout">
