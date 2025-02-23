@@ -76,22 +76,30 @@ export function ChatWindow({ rideId }: { rideId: number }) {
             >
               <Avatar className="h-8 w-8 shrink-0">
                 <AvatarFallback>
-                  {msg.userId === user?.id ? "You" : "U"}
+                  {msg.username ? msg.username.charAt(0).toUpperCase() : (msg.userId === user?.id ? "You" : "U")}
                 </AvatarFallback>
               </Avatar>
-              <Card
-                className={cn(
-                  "p-3 max-w-[75%]",
-                  msg.userId === user?.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
-                )}
-              >
-                <p className="text-sm break-words">{msg.content}</p>
-                <span className="text-xs opacity-70 mt-1 block">
-                  {new Date(msg.timestamp).toLocaleTimeString()}
+              <div className="flex flex-col gap-1">
+                <span className={cn(
+                  "text-xs font-medium",
+                  msg.userId === user?.id ? "text-right" : "text-left"
+                )}>
+                  {msg.userId === user?.id ? "You" : msg.username}
                 </span>
-              </Card>
+                <Card
+                  className={cn(
+                    "p-3 max-w-[75%]",
+                    msg.userId === user?.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted"
+                  )}
+                >
+                  <p className="text-sm break-words">{msg.content}</p>
+                  <span className="text-xs opacity-70 mt-1 block">
+                    {new Date(msg.timestamp).toLocaleTimeString()}
+                  </span>
+                </Card>
+              </div>
             </div>
           ))}
           <div ref={messageEndRef} />

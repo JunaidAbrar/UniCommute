@@ -1,15 +1,85 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { insertRideSchema, insertRequestSchema, insertMessageSchema } from "@shared/schema";
+
+interface ChatWebSocket extends WebSocket {
+  userId?: number;
+  rideId?: number;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
 
   const httpServer = createServer(app);
 
-  // Rides
+  // Setup WebSocket server
+  const wss = new WebSocketServer({ 
+    server: httpServer,
+    path: '/ws/chat'
+  });
+
+  wss.on('connection', async (ws: ChatWebSocket, req) => {
+    // Extract rideId from URL path
+    const match = req.url?.match(/\/chat\/(\d+)/);
+    if (!match) {
+      ws.close();
+      return;
+    }
+
+    const rideId = parseInt(match[1]);
+    ws.rideId = rideId;
+
+    try {
+      // Send chat history
+      const messages = await storage.getMessagesByRide(rideId);
+      ws.send(JSON.stringify({
+        type: 'history',
+        messages: messages
+      }));
+    } catch (error) {
+      console.error('Error fetching chat history:', error);
+      ws.close();
+    }
+
+    ws.on('message', async (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        if (message.type === 'message') {
+          const { content, userId, username } = message;
+
+          // Store message in database - matching schema format
+          const storedMessage = await storage.createMessage(userId, {
+            content,
+            rideId,
+            type: 'text',
+            timestamp: new Date().toISOString()
+          });
+
+          // Broadcast to all clients in this ride's chat
+          const broadcastMessage = {
+            type: 'message',
+            message: {
+              ...storedMessage,
+              username
+            }
+          };
+
+          wss.clients.forEach((client: ChatWebSocket) => {
+            if (client.rideId === rideId && client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify(broadcastMessage));
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error processing message:', error);
+      }
+    });
+  });
+
+  // Existing HTTP routes
   app.post("/api/rides", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -51,7 +121,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ride = await storage.getRide(parseInt(req.params.id));
       if (!ride) throw new Error("Ride not found");
 
-      // Only allow leaving if user is a participant but not the host
       if (!ride.participants.includes(req.user.id)) {
         throw new Error("You are not a participant in this ride");
       }
@@ -68,7 +137,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Requests
   app.post("/api/requests", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -92,7 +160,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(requests);
   });
 
-  // Messages
   app.get("/api/rides/:rideId/messages", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -128,7 +195,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add new route for kicking members
   app.post("/api/rides/:rideId/kick/:userId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -139,17 +205,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ride = await storage.getRide(rideId);
       if (!ride) throw new Error("Ride not found");
 
-      // Only ride host can kick members
       if (ride.hostId !== req.user.id) {
         throw new Error("Only the ride host can remove members");
       }
 
-      // Cannot kick the host
       if (userIdToKick === ride.hostId) {
         throw new Error("Cannot remove the ride host");
       }
 
-      // Check if user is actually in the ride
       if (!ride.participants.includes(userIdToKick)) {
         throw new Error("User is not a participant in this ride");
       }

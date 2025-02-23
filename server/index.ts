@@ -36,30 +36,77 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
-  const server = await registerRoutes(app);
+async function startServer(port: number): Promise<void> {
+  try {
+    log(`Attempting to start server on port ${port}...`);
+    const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+      res.status(status).json({ message });
+      throw err;
+    });
 
-    res.status(status).json({ message });
-    throw err;
-  });
+    if (app.get("env") === "development") {
+      log('Setting up Vite development server...');
+      await setupVite(app, server);
+    } else {
+      log('Setting up static file serving...');
+      serveStatic(app);
+    }
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
+    await new Promise<void>((resolve, reject) => {
+      server.listen(port, "0.0.0.0", () => {
+        log(`Server successfully started on port ${port}`);
+        resolve();
+      }).on('error', (error: any) => {
+        if (error.code === 'EADDRINUSE') {
+          reject(new Error(`Port ${port} is in use`));
+        } else {
+          reject(error);
+        }
+      });
+
+      // Handle cleanup on server shutdown
+      const cleanup = () => {
+        server.close(() => {
+          log('HTTP server closed');
+          process.exit(0);
+        });
+      };
+
+      process.on('SIGTERM', () => {
+        log('SIGTERM signal received: closing HTTP server');
+        cleanup();
+      });
+
+      process.on('SIGINT', () => {
+        log('SIGINT signal received: closing HTTP server');
+        cleanup();
+      });
+    });
+  } catch (error) {
+    log(`Server startup failed: ${error}`);
+    throw error;
   }
+}
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client
-  const PORT = 5000;
-  server.listen(PORT, "0.0.0.0", () => {
-    log(`serving on port ${PORT}`);
-  });
+// Try a range of ports if the default port is in use
+(async () => {
+  const ports = [5000, 5001, 5002, 5003, 5004];
+
+  for (const port of ports) {
+    try {
+      await startServer(port);
+      break;
+    } catch (error: any) {
+      if (error.message?.includes('Port') && port !== ports[ports.length - 1]) {
+        log(`Port ${port} is in use, trying next port...`);
+        continue;
+      }
+      log(`Failed to start server: ${error.message}`);
+      process.exit(1);
+    }
+  }
 })();

@@ -1,46 +1,96 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Message } from "@shared/schema";
 import { useAuth } from "./use-auth";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+interface ChatMessage extends Message {
+  username: string;
+}
 
 export function useChat(rideId: number) {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isConnecting, setIsConnecting] = useState(true);
+  const socketRef = useRef<WebSocket | null>(null);
 
-  // Fetch messages with polling
-  const { data: messages = [] } = useQuery<Message[]>({
-    queryKey: [`/api/rides/${rideId}/messages`],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/api/rides/${rideId}/messages`);
-      return await res.json();
-    },
-    refetchInterval: 1000, // Poll every second
-  });
+  // Initialize WebSocket connection
+  useEffect(() => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/ws/chat/${rideId}`;
 
-  // Mutation for sending messages
-  const messageMutation = useMutation({
-    mutationFn: async (content: string) => {
-      const message = {
-        rideId,
-        content,
-        type: 'text'
-      };
-      const res = await apiRequest("POST", `/api/rides/${rideId}/messages`, message);
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/rides/${rideId}/messages`] });
-    },
-  });
+    const socket = new WebSocket(wsUrl);
+    socketRef.current = socket;
 
-  const sendMessage = (content: string) => {
+    socket.onopen = () => {
+      setIsConnecting(false);
+      console.log("WebSocket connected");
+    };
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'message') {
+        setMessages(prev => [...prev, data.message]);
+      } else if (data.type === 'history') {
+        setMessages(data.messages);
+      }
+    };
+
+    socket.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      toast({
+        title: "Connection Error",
+        description: "Failed to connect to chat. Please try again.",
+        variant: "destructive",
+      });
+    };
+
+    socket.onclose = () => {
+      setIsConnecting(true);
+      toast({
+        title: "Disconnected",
+        description: "Chat connection lost. Attempting to reconnect...",
+        variant: "destructive",
+      });
+
+      // Attempt to reconnect after 3 seconds
+      setTimeout(() => {
+        if (socketRef.current?.readyState === WebSocket.CLOSED) {
+          socketRef.current = null;
+        }
+      }, 3000);
+    };
+
+    return () => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
+    };
+  }, [rideId, toast]);
+
+  const sendMessage = useCallback((content: string) => {
     if (!user || content.trim() === '') return;
-    messageMutation.mutate(content);
-  };
+
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        type: 'message',
+        content,
+        rideId,
+        userId: user.id,
+        username: user.username
+      }));
+    } else {
+      toast({
+        title: "Connection Error",
+        description: "Not connected to chat. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [user, rideId, toast]);
 
   return {
     messages,
     sendMessage,
-    isLoading: messageMutation.isPending
+    isLoading: isConnecting
   };
 }

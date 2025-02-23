@@ -15,9 +15,21 @@ function Router() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
-      <ProtectedRoute path="/" component={HomePage} />
-      <ProtectedRoute path="/chat/:rideId" component={ChatPage} />
-      <ProtectedRoute path="/profile" component={ProfilePage} />
+      <Route path="/" component={() => (
+        <ProtectedRoute>
+          <HomePage />
+        </ProtectedRoute>
+      )} />
+      <Route path="/chat/:rideId" component={() => (
+        <ProtectedRoute>
+          <ChatPage />
+        </ProtectedRoute>
+      )} />
+      <Route path="/profile" component={() => (
+        <ProtectedRoute>
+          <ProfilePage />
+        </ProtectedRoute>
+      )} />
       <Route component={NotFound} />
     </Switch>
   );
