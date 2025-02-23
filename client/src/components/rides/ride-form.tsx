@@ -407,11 +407,10 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                         step={0.01}
                         className="h-12"
                         {...field}
+                        value={field.value === 0 ? "" : field.value}
                         onChange={(e) => {
-                          const value = parseFloat(e.target.value);
-                          if (!isNaN(value) && value >= 0) {
-                            field.onChange(value);
-                          }
+                          const value = e.target.value === "" ? 0 : parseFloat(e.target.value);
+                          field.onChange(value);
                         }}
                       />
                     </div>
