@@ -1,5 +1,6 @@
 import { User, InsertUser, Ride, InsertRide, Request, InsertRequest, Message, InsertMessage } from "@shared/schema";
 import type { Store } from "express-session";
+import { WebSocket } from 'ws';
 
 export interface IStorage {
   sessionStore: Store;
@@ -22,4 +23,23 @@ export interface IStorage {
   // Message Operations
   createMessage(userId: number, message: InsertMessage): Promise<Message>;
   getMessagesByRide(rideId: number): Promise<Message[]>;
+}
+
+export interface ChatMessage {
+  id: string;
+  rideId: string;
+  userId: string;
+  username: string;
+  content: string;
+  timestamp: Date;
+}
+
+export interface WebSocketClient extends WebSocket {
+  userId?: string;
+  rideId?: string;
+}
+
+export interface ChatRoom {
+  rideId: string;
+  clients: Set<WebSocketClient>;
 }
