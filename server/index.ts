@@ -36,113 +36,30 @@ app.use((req, res, next) => {
   next();
 });
 
-// Track active server instances
-let activeServer: any | null = null;
-
-const forceCleanup = () => {
-  log('Force cleaning up any existing server instances...');
-  if (activeServer) {
-    try {
-      activeServer.close(() => {
-        log('Successfully closed existing server instance');
-      });
-    } catch (error) {
-      log(`Error closing existing server: ${error}`);
-    }
-    activeServer = null;
-  }
-};
-
-async function startServer(port: number): Promise<void> {
-  try {
-    log(`Attempting to start server on port ${port}...`);
-
-    // Force cleanup any existing instances
-    forceCleanup();
-
-    // Create server first to set up WebSocket
-    const server = await registerRoutes(app);
-    activeServer = server;
-
-    // Set up error handling middleware
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-      const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
-      res.status(status).json({ message });
-      log(`Error: ${err.message}`);
-    });
-
-    // Listen on port before setting up Vite to ensure WebSocket server binds first
-    await new Promise<void>((resolve, reject) => {
-      server.listen(port, "0.0.0.0", () => {
-        log(`HTTP and WebSocket servers started on port ${port}`);
-        resolve();
-      }).on('error', (error: any) => {
-        if (error.code === 'EADDRINUSE') {
-          log(`Port ${port} is in use, forcing cleanup and retry...`);
-          forceCleanup();
-          reject(new Error(`Port ${port} is in use`));
-        } else {
-          reject(error);
-        }
-      });
-    });
-
-    // Now set up Vite or static serving
-    if (app.get("env") === "development") {
-      log('Setting up Vite development server...');
-      await setupVite(app, server);
-      log('Vite development server ready');
-    } else {
-      log('Setting up static file serving...');
-      serveStatic(app);
-      log('Static file serving ready');
-    }
-
-    // Handle cleanup on server shutdown
-    const cleanup = () => {
-      if (activeServer) {
-        activeServer.close(() => {
-          log('HTTP server closed');
-          process.exit(0);
-        });
-      } else {
-        process.exit(0);
-      }
-    };
-
-    process.on('SIGTERM', () => {
-      log('SIGTERM signal received: closing HTTP server');
-      cleanup();
-    });
-
-    process.on('SIGINT', () => {
-      log('SIGINT signal received: closing HTTP server');
-      cleanup();
-    });
-
-  } catch (error) {
-    log(`Server startup failed: ${error}`);
-    forceCleanup(); // Ensure cleanup on error
-    throw error;
-  }
-}
-
-// Try an expanded range of ports if the default ports are in use
 (async () => {
-  const ports = Array.from({ length: 10 }, (_, i) => 5000 + i);
+  const server = await registerRoutes(app);
 
-  for (const port of ports) {
-    try {
-      await startServer(port);
-      break;
-    } catch (error: any) {
-      if (error.message?.includes('Port') && port !== ports[ports.length - 1]) {
-        log(`Port ${port} is in use, trying next port...`);
-        continue;
-      }
-      log(`Failed to start server: ${error.message}`);
-      process.exit(1);
-    }
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    res.status(status).json({ message });
+    throw err;
+  });
+
+  // importantly only setup vite in development and after
+  // setting up all the other routes so the catch-all route
+  // doesn't interfere with the other routes
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
   }
+
+  // ALWAYS serve the app on port 5000
+  // this serves both the API and the client
+  const PORT = 5000;
+  server.listen(PORT, "0.0.0.0", () => {
+    log(`serving on port ${PORT}`);
+  });
 })();

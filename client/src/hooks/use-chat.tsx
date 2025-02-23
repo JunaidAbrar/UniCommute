@@ -1,114 +1,46 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState } from "react";
 import { Message } from "@shared/schema";
 import { useAuth } from "./use-auth";
-import { useToast } from "@/hooks/use-toast";
-
-interface ChatMessage extends Message {
-  username: string;
-}
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export function useChat(rideId: number) {
   const { user } = useAuth();
-  const { toast } = useToast();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isConnecting, setIsConnecting] = useState(true);
-  const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Initialize WebSocket connection
-  useEffect(() => {
-    const connect = () => {
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/ws/chat/${rideId}`;
+  // Fetch messages with polling
+  const { data: messages = [] } = useQuery<Message[]>({
+    queryKey: [`/api/rides/${rideId}/messages`],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/rides/${rideId}/messages`);
+      return await res.json();
+    },
+    refetchInterval: 1000, // Poll every second
+  });
 
-      const socket = new WebSocket(wsUrl);
-      socketRef.current = socket;
-
-      socket.onopen = () => {
-        setIsConnecting(false);
-        console.log("WebSocket connected");
-
-        // Clear any pending reconnection attempts
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-          reconnectTimeoutRef.current = undefined;
-        }
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'message') {
-            setMessages(prev => [...prev, data.message]);
-          } else if (data.type === 'history') {
-            setMessages(data.messages);
-          }
-        } catch (error) {
-          console.error('Error parsing message:', error);
-        }
-      };
-
-      socket.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        toast({
-          title: "Connection Error",
-          description: "Failed to connect to chat. Please try again.",
-          variant: "destructive",
-        });
-      };
-
-      socket.onclose = () => {
-        setIsConnecting(true);
-        toast({
-          title: "Disconnected",
-          description: "Chat connection lost. Attempting to reconnect...",
-          variant: "destructive",
-        });
-
-        // Attempt to reconnect after a delay
-        reconnectTimeoutRef.current = setTimeout(() => {
-          if (socketRef.current?.readyState === WebSocket.CLOSED) {
-            connect();
-          }
-        }, 3000);
-      };
-    };
-
-    connect();
-
-    return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (socketRef.current?.readyState === WebSocket.OPEN) {
-        socketRef.current.close();
-      }
-    };
-  }, [rideId, toast]);
-
-  const sendMessage = useCallback((content: string) => {
-    if (!user || content.trim() === '') return;
-
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({
-        type: 'message',
-        content,
+  // Mutation for sending messages
+  const messageMutation = useMutation({
+    mutationFn: async (content: string) => {
+      const message = {
         rideId,
-        userId: user.id,
-        username: user.username
-      }));
-    } else {
-      toast({
-        title: "Connection Error",
-        description: "Not connected to chat. Please try again.",
-        variant: "destructive",
-      });
-    }
-  }, [user, rideId, toast]);
+        content,
+        type: 'text'
+      };
+      const res = await apiRequest("POST", `/api/rides/${rideId}/messages`, message);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/rides/${rideId}/messages`] });
+    },
+  });
+
+  const sendMessage = (content: string) => {
+    if (!user || content.trim() === '') return;
+    messageMutation.mutate(content);
+  };
 
   return {
     messages,
     sendMessage,
-    isLoading: isConnecting
+    isLoading: messageMutation.isPending
   };
 }
