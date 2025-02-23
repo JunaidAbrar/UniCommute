@@ -34,7 +34,7 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-screen pb-16">
       <Card className="flex-1 flex flex-col p-4 min-h-0">
         {error && (
           <div className="text-sm text-red-500 mb-2">
@@ -44,7 +44,7 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
         <ScrollArea 
           ref={scrollAreaRef}
           className="flex-1 pr-4"
-          style={{ height: 'calc(100% - 60px)' }}
+          style={{ height: 'calc(100vh - 240px)' }}
         >
           <div className="flex flex-col gap-4">
             {messages.map((msg) => (

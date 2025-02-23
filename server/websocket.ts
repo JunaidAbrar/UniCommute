@@ -14,47 +14,50 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
     try {
       // Extract session ID from cookie
       const cookieHeader = req.headers.cookie || '';
-      console.log('Received cookie header:', cookieHeader);
+      console.log('WebSocket connection attempt with cookie:', cookieHeader);
 
       const cookies = parseCookie(cookieHeader);
       const sessionID = cookies['connect.sid'];
 
       if (!sessionID) {
-        console.log('WebSocket connection rejected: No session ID found in cookies');
-        ws.close();
+        console.log('WebSocket connection rejected: No session ID found');
+        ws.close(1008, 'No session ID found');
         return;
       }
 
-      // Clean session ID (remove 's:' prefix if exists)
-      const cleanSessionID = sessionID.replace(/^s:/, '').split('.')[0];
-      console.log('Attempting to get session with ID:', cleanSessionID);
+      // Clean session ID (remove 's:' prefix and signature)
+      const cleanSessionID = decodeURIComponent(sessionID.replace(/^s:/, '').split('.')[0]);
+      console.log('Clean session ID:', cleanSessionID);
 
       // Get session data
-      const sessionData: any = await new Promise((resolve) => {
+      const sessionData: any = await new Promise((resolve, reject) => {
         storage.sessionStore.get(cleanSessionID, (err, session) => {
           if (err) {
-            console.error('Error getting session:', err);
-            resolve(null);
+            console.error('Session store error:', err);
+            reject(err);
           } else {
-            console.log('Retrieved session data:', session);
+            console.log('Session data retrieved:', session);
             resolve(session);
           }
         });
       });
 
       if (!sessionData || !sessionData.passport?.user) {
-        console.log('WebSocket connection rejected: Invalid session data', sessionData);
-        ws.close();
+        console.log('Invalid session data:', sessionData);
+        ws.close(1008, 'Invalid session');
         return;
       }
 
       const userId = sessionData.passport.user;
-      console.log(`WebSocket client connected. UserID: ${userId}`);
+      console.log(`WebSocket client authenticated. UserID: ${userId}`);
+
+      // Initialize client info
+      ws.userId = userId;
 
       ws.on('message', async (message: string) => {
         try {
           const data = JSON.parse(message);
-          console.log('Received message:', data);
+          console.log('Received message from user', userId, ':', data);
 
           switch (data.type) {
             case 'join':
@@ -66,11 +69,16 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
             case 'leave':
               handleLeave(ws);
               break;
+            default:
+              console.log('Unknown message type:', data.type);
           }
         } catch (error) {
-          console.error('Error handling message:', error);
-          if (error instanceof Error) {
-            console.error('Error details:', error.message);
+          console.error('Error processing message:', error);
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ 
+              type: 'error', 
+              message: 'Failed to process message' 
+            }));
           }
         }
       });
@@ -80,102 +88,117 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
         handleLeave(ws);
       });
 
+      ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+        handleLeave(ws);
+      });
+
     } catch (error) {
-      console.error('Error in WebSocket connection:', error);
-      if (error instanceof Error) {
-        console.error('Error details:', error.message);
+      console.error('WebSocket connection error:', error);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close(1011, 'Internal server error');
       }
-      ws.close();
     }
   });
 }
 
 async function handleJoin(ws: WebSocketClient, data: any, userId: number) {
-  const { rideId } = data;
+  try {
+    const { rideId } = data;
+    if (!rideId) {
+      throw new Error('No rideId provided');
+    }
 
-  if (!rideId) {
-    console.log('Join rejected: No rideId provided');
-    ws.close();
-    return;
+    const numericRideId = parseInt(rideId);
+    if (isNaN(numericRideId)) {
+      throw new Error('Invalid rideId format');
+    }
+
+    // Verify user is a participant in the ride
+    const ride = await storage.getRide(numericRideId);
+    if (!ride || !ride.participants.includes(userId)) {
+      throw new Error(`User ${userId} not authorized for ride ${numericRideId}`);
+    }
+
+    ws.rideId = numericRideId;
+
+    let room = rooms.get(numericRideId.toString());
+    if (!room) {
+      room = { rideId: numericRideId, clients: new Set() };
+      rooms.set(numericRideId.toString(), room);
+    }
+    room.clients.add(ws);
+
+    console.log(`User ${userId} joined ride ${numericRideId}`);
+
+    // Send confirmation
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'joined', rideId: numericRideId }));
+    }
+  } catch (error) {
+    console.error('Error in handleJoin:', error);
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ 
+        type: 'error', 
+        message: error instanceof Error ? error.message : 'Failed to join ride'
+      }));
+    }
   }
-
-  const numericRideId = parseInt(rideId);
-  if (isNaN(numericRideId)) {
-    console.log('Join rejected: Invalid rideId format');
-    ws.close();
-    return;
-  }
-
-  ws.userId = userId;
-  ws.rideId = numericRideId;
-
-  // Verify user is a participant in the ride
-  const ride = await storage.getRide(numericRideId);
-  if (!ride || !ride.participants.includes(userId)) {
-    console.log(`Join rejected: User ${userId} not in ride ${numericRideId}`);
-    ws.close();
-    return;
-  }
-
-  let room = rooms.get(numericRideId.toString());
-  if (!room) {
-    room = { rideId: numericRideId, clients: new Set() };
-    rooms.set(numericRideId.toString(), room);
-  }
-  room.clients.add(ws);
-  console.log(`User ${userId} joined ride ${numericRideId}`);
 }
 
 async function handleMessage(ws: WebSocketClient, data: any, userId: number) {
-  if (!ws.rideId) {
-    console.log('Message rejected: No rideId associated with connection');
-    return;
-  }
-
-  const user = await storage.getUser(userId);
-  if (!user) {
-    console.error(`Message rejected: User ${userId} not found`);
-    return;
-  }
-
-  const message: ChatMessage = {
-    id: crypto.randomUUID(),
-    rideId: ws.rideId,
-    userId: userId,
-    username: user.username,
-    content: data.content,
-    timestamp: new Date()
-  };
-
-  console.log('Creating message:', message);
-
   try {
-    // Store message in database
+    if (!ws.rideId) {
+      throw new Error('No active ride');
+    }
+
+    const user = await storage.getUser(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const message: ChatMessage = {
+      id: crypto.randomUUID(),
+      rideId: ws.rideId,
+      userId: userId,
+      username: user.username,
+      content: data.content,
+      timestamp: new Date()
+    };
+
+    console.log('Broadcasting message:', message);
+
+    // Store in database first
     await storage.createMessage(userId, {
       rideId: ws.rideId,
       content: data.content,
       type: 'text'
     });
 
-    // Broadcast to all clients in the room
+    // Then broadcast to room
     const room = rooms.get(ws.rideId.toString());
     if (room) {
+      const messageToSend = JSON.stringify({
+        type: 'message',
+        message: {
+          ...message,
+          timestamp: message.timestamp.toISOString()
+        }
+      });
+
       room.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            type: 'message',
-            message: {
-              ...message,
-              timestamp: message.timestamp.toISOString()
-            }
-          }));
+          client.send(messageToSend);
         }
       });
     }
   } catch (error) {
-    console.error('Error handling message:', error);
-    if (error instanceof Error) {
-      console.error('Error details:', error.message);
+    console.error('Error in handleMessage:', error);
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ 
+        type: 'error', 
+        message: error instanceof Error ? error.message : 'Failed to send message'
+      }));
     }
   }
 }
