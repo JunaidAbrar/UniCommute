@@ -19,10 +19,11 @@ import { pool } from "./db";
 
 const PostgresSessionStore = connectPg(session);
 
-// Extended type for rides with full participant details
+// Update RideWithDetails type to include estimatedFare
 type RideWithDetails = Omit<Ride, 'participants'> & {
   host: Pick<User, 'username' | 'university'>;
   participants: User[];
+  estimatedFare: number; // Added estimatedFare
 };
 
 export class DatabaseStorage implements IStorage {
@@ -115,6 +116,7 @@ export class DatabaseStorage implements IStorage {
     return { ...ride, host };
   }
 
+  // Update the getActiveRides method
   async getActiveRides(): Promise<RideWithDetails[]> {
     const rides = await db
       .select()
@@ -148,6 +150,7 @@ export class DatabaseStorage implements IStorage {
           seatsAvailable: ride.seatsAvailable,
           femaleOnly: ride.femaleOnly,
           isActive: ride.isActive,
+          estimatedFare: ride.estimatedFare, // Added estimatedFare
           host: {
             username: host.username,
             university: host.university
