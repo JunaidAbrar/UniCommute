@@ -50,41 +50,44 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
           style={{ height: 'calc(100vh - 240px)' }}
         >
           <div className="flex flex-col gap-4">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  "flex flex-col gap-1",
-                  msg.userId === user?.id ? "items-end" : "items-start"
-                )}
-              >
-                <div className="flex items-center gap-2 text-sm">
-                  <Avatar className="h-6 w-6">
-                    <AvatarFallback>
-                      {(msg.userId === user?.id ? "You" : msg.username || "User")
-                        .charAt(0)
-                        .toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="font-semibold text-foreground">
-                    {msg.userId === user?.id ? "You" : msg.username || "User"}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {format(new Date(msg.timestamp), "h:mm a")}
-                  </span>
-                </div>
-                <Card
+            {messages.map((msg) => {
+              const isCurrentUser = msg.userId === user?.id;
+              const displayName = isCurrentUser ? "You" : (msg.username || "Anonymous");
+
+              return (
+                <div
+                  key={msg.id}
                   className={cn(
-                    "px-3 py-2 max-w-[80%]",
-                    msg.userId === user?.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
+                    "flex flex-col gap-1",
+                    isCurrentUser ? "items-end" : "items-start"
                   )}
                 >
-                  {msg.content}
-                </Card>
-              </div>
-            ))}
+                  <div className="flex items-center gap-2 text-sm">
+                    <Avatar className="h-6 w-6">
+                      <AvatarFallback>
+                        {displayName.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="font-semibold text-foreground">
+                      {displayName}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {format(new Date(msg.timestamp), "h:mm a")}
+                    </span>
+                  </div>
+                  <Card
+                    className={cn(
+                      "px-3 py-2 max-w-[80%]",
+                      isCurrentUser
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    )}
+                  >
+                    {msg.content}
+                  </Card>
+                </div>
+              );
+            })}
           </div>
         </ScrollArea>
 
