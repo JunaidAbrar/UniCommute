@@ -36,6 +36,16 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
     }
   };
 
+  // Function to get initials from username
+  const getInitials = (username: string) => {
+    return username
+      .split(' ')
+      .map(part => part[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   return (
     <div className="flex flex-col h-screen pb-16">
       <Card className="flex-1 flex flex-col p-4 min-h-0">
@@ -54,28 +64,38 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
               <div
                 key={msg.id}
                 className={cn(
-                  "flex flex-col gap-1",
-                  msg.userId === user?.id ? "items-end" : "items-start"
+                  "flex gap-3",
+                  msg.userId === user?.id ? "flex-row-reverse" : "flex-row"
                 )}
               >
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="font-medium">
-                    {msg.userId === user?.id ? "You" : msg.username || 'Unknown'}
-                  </span>
-                  <span>
-                    {format(new Date(msg.timestamp), "h:mm a")}
-                  </span>
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>
+                    {getInitials(msg.username || 'Unknown')}
+                  </AvatarFallback>
+                </Avatar>
+                <div className={cn(
+                  "flex flex-col gap-1",
+                  msg.userId === user?.id ? "items-end" : "items-start"
+                )}>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-medium">
+                      {msg.userId === user?.id ? "You" : msg.username || 'Unknown'}
+                    </span>
+                    <span>
+                      {format(new Date(msg.timestamp), "h:mm a")}
+                    </span>
+                  </div>
+                  <Card
+                    className={cn(
+                      "px-3 py-2 max-w-[80%]",
+                      msg.userId === user?.id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    )}
+                  >
+                    {msg.content}
+                  </Card>
                 </div>
-                <Card
-                  className={cn(
-                    "px-3 py-2 max-w-[80%]",
-                    msg.userId === user?.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  )}
-                >
-                  {msg.content}
-                </Card>
               </div>
             ))}
           </div>

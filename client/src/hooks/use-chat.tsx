@@ -60,6 +60,15 @@ export function useChat(rideId: number) {
                 timestamp: new Date(data.message.timestamp)
               }];
             });
+          } else if (data.type === 'error') {
+            setError(data.message);
+            // If it's an authentication error, try to reconnect
+            if (data.message.includes('auth')) {
+              if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+              }
+              reconnectTimeoutRef.current = setTimeout(connect, 5000);
+            }
           }
         } catch (err) {
           console.error('Error parsing message:', err);
@@ -112,7 +121,12 @@ export function useChat(rideId: number) {
 
     console.log('Loading existing messages for ride:', rideId);
     fetch(`/api/rides/${rideId}/messages`)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`Failed to load messages: ${res.status}`);
+        }
+        return res.json();
+      })
       .then(data => {
         console.log('Loaded messages:', data);
         setMessages(data.map((msg: any) => ({
