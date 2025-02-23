@@ -21,8 +21,7 @@ import { useAuth } from "@/hooks/use-auth";
 // Extended type for rides with full details
 type RideWithDetails = Omit<Ride, 'participants'> & {
   host: Pick<User, 'username' | 'university'>;
-  participants: Array<Pick<User, 'id' | 'username' | 'university' | 'gender' | 'avatar'>>;
-  estimatedFare: number;
+  participants: User[];
 };
 
 export default function HomePage() {
@@ -43,26 +42,35 @@ export default function HomePage() {
     return { activeRide: active, otherRides: others };
   }, [rides, user?.id]);
 
+
   // Filter rides based on search query
   const filteredRides = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    if (!query) return activeRide ? [activeRide, ...otherRides] : otherRides;
+    if (!query) {
+      // If no search query, return active ride first, then others
+      return activeRide ? [activeRide, ...otherRides] : otherRides;
+    }
 
-    const matchesSearch = (ride: RideWithDetails) => {
+    // Filter function with ride number support
+    const matchesSearch = (ride: Ride) => {
       const rideNumber = `ride#${ride.id}`;
-      const searchText = `
+      const searchableText = `
         ${rideNumber}
+        ${ride.id}
         ${ride.origin.toLowerCase()}
         ${ride.destination.toLowerCase()}
         ${ride.stopPoints.join(" ").toLowerCase()}
       `;
-      return searchText.includes(query);
+      return searchableText.includes(query);
     };
 
+    // If active ride matches search, include it first
     const matches = [];
     if (activeRide && matchesSearch(activeRide)) {
       matches.push(activeRide);
     }
+
+    // Add other matching rides
     matches.push(...otherRides.filter(matchesSearch));
 
     return matches;
@@ -113,8 +121,8 @@ export default function HomePage() {
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
-              e.preventDefault();
-              setSearchQuery(e.currentTarget.value);
+              e.preventDefault(); 
+              setSearchQuery(e.target.value);
             }
           }}
           className="pl-9 pr-9 h-12 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"

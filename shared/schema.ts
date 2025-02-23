@@ -26,8 +26,7 @@ export const rides = pgTable("rides", {
   seatsAvailable: integer("seats_available").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   participants: integer("participants").array().notNull().default([]),
-  femaleOnly: boolean("female_only").notNull().default(false),
-  estimatedFare: integer("estimated_fare").notNull().default(0)  // Added estimated fare field
+  femaleOnly: boolean("female_only").notNull().default(false)
 });
 
 export const requests = pgTable("requests", {
@@ -63,8 +62,7 @@ export const insertRideSchema = z.object({
   departureTime: z.coerce.date(),
   transportType: transportType,
   seatsAvailable: z.number().min(1).max(6),
-  femaleOnly: z.boolean().default(false),
-  estimatedFare: z.number().min(0, "Fare cannot be negative").default(0)  // Added estimated fare validation
+  femaleOnly: z.boolean().default(false)
 });
 
 export const insertRequestSchema = createInsertSchema(requests).pick({

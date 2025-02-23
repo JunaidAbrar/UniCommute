@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Plus, Minus, X, BanknoteIcon } from "lucide-react";
+import { CalendarIcon, Plus, Minus, X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
@@ -67,8 +67,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
       departureTime: new Date(),
       transportType: "PERSONAL",
       seatsAvailable: 3,
-      femaleOnly: false,
-      estimatedFare: 0
+      femaleOnly: false
     },
   });
 
@@ -392,40 +391,6 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                 </FormItem>
               )}
             />
-
-            <FormField
-              control={form.control}
-              name="estimatedFare"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Estimated Fare (BDT)</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">
-                        <BanknoteIcon className="h-4 w-4 text-muted-foreground" />
-                      </span>
-                      <Input
-                        type="number"
-                        min={0}
-                        className="h-12 pl-9"
-                        {...field}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value);
-                          if (!isNaN(value) && value >= 0) {
-                            field.onChange(value);
-                          }
-                        }}
-                      />
-                    </div>
-                  </FormControl>
-                  <FormDescription>
-                    Enter the estimated fare for this ride in BDT
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
 
             {showFemaleOnlyToggle && (
               <FormField
