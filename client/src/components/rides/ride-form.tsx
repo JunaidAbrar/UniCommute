@@ -67,7 +67,8 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
       departureTime: new Date(),
       transportType: "PERSONAL",
       seatsAvailable: 3,
-      femaleOnly: false
+      femaleOnly: false,
+      estimatedFare: 0
     },
   });
 
@@ -387,6 +388,37 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                       )}
                     </div>
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="estimatedFare"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Estimated Fare (per person)</FormLabel>
+                  <FormControl>
+                    <div className="flex items-center gap-4">
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        className="h-12"
+                        {...field}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value);
+                          if (!isNaN(value) && value >= 0) {
+                            field.onChange(value);
+                          }
+                        }}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    Enter the estimated fare each participant will need to pay
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

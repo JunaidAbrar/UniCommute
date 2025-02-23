@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Clock, Users, Car, Trash2, Minus, UserX } from "lucide-react";
+import { MapPin, Clock, Users, Car, Trash2, Minus, UserX, Banknote } from "lucide-react";
 import type { Ride, User } from "@shared/schema";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -198,6 +198,12 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
             <div className="flex items-center gap-2">
               <Car className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">{ride.transportType}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Banknote className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm">
+                Estimated Fare: ${ride.estimatedFare.toFixed(2)} per person
+              </span>
             </div>
             {isHost && (
               <div className="border-t pt-4 mt-4">

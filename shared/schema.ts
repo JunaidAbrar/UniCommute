@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -26,7 +26,8 @@ export const rides = pgTable("rides", {
   seatsAvailable: integer("seats_available").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   participants: integer("participants").array().notNull().default([]),
-  femaleOnly: boolean("female_only").notNull().default(false)
+  femaleOnly: boolean("female_only").notNull().default(false),
+  estimatedFare: real("estimated_fare").notNull().default(0)
 });
 
 export const requests = pgTable("requests", {
@@ -62,7 +63,8 @@ export const insertRideSchema = z.object({
   departureTime: z.coerce.date(),
   transportType: transportType,
   seatsAvailable: z.number().min(1).max(6),
-  femaleOnly: z.boolean().default(false)
+  femaleOnly: z.boolean().default(false),
+  estimatedFare: z.number().min(0, "Estimated fare must be positive")
 });
 
 export const insertRequestSchema = createInsertSchema(requests).pick({
