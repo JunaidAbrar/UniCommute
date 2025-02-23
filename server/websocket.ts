@@ -5,6 +5,7 @@ import * as crypto from 'crypto';
 import { parse as parseCookie } from 'cookie';
 import { IncomingMessage } from 'http';
 import type { Express } from 'express';
+import { WebSocket } from 'ws';
 
 const rooms = new Map<string, ChatRoom>();
 
@@ -159,10 +160,15 @@ async function handleMessage(ws: WebSocketClient, data: any, userId: number) {
     // Broadcast to all clients in the room
     const room = rooms.get(ws.rideId.toString());
     if (room) {
-      const messageStr = JSON.stringify({ type: 'message', message });
       room.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
-          client.send(messageStr);
+          client.send(JSON.stringify({
+            type: 'message',
+            message: {
+              ...message,
+              timestamp: message.timestamp.toISOString()
+            }
+          }));
         }
       });
     }
