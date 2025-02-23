@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
+import { storage } from "./storage";
 import { insertRideSchema, insertRequestSchema, insertMessageSchema } from "@shared/schema";
 import { IStorage } from "./types";
 import {
@@ -17,6 +18,12 @@ import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 
 const PostgresSessionStore = connectPg(session);
+
+// Extended type for rides with full participant details
+type RideWithDetails = Omit<Ride, 'participants'> & {
+  host: Pick<User, 'username' | 'university'>;
+  participants: User[];
+};
 
 export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
@@ -108,17 +115,51 @@ export class DatabaseStorage implements IStorage {
     return { ...ride, host };
   }
 
-  async getActiveRides(): Promise<Ride[]> {
+  async getActiveRides(): Promise<RideWithDetails[]> {
     const rides = await db
       .select()
       .from(ridesTable)
       .where(eq(ridesTable.isActive, true))
       .orderBy(ridesTable.departureTime);
 
-    return rides.map(ride => ({
-      ...ride,
-      participants: ride.participants.map(Number) // Ensure participants are numbers
-    }));
+    const ridesWithDetails = await Promise.all(
+      rides.map(async (ride) => {
+        const host = await this.getUser(ride.hostId);
+        if (!host) throw new Error(`Host not found for ride ${ride.id}`);
+
+        // Fetch all participant details
+        const participantUsers = await Promise.all(
+          ride.participants.map(async (id) => {
+            const user = await this.getUser(id);
+            if (!user) throw new Error(`Participant not found: ${id}`);
+            return user;
+          })
+        );
+
+        // Create a ride with details object matching our extended type
+        const rideWithDetails: RideWithDetails = {
+          id: ride.id,
+          hostId: ride.hostId,
+          origin: ride.origin,
+          destination: ride.destination,
+          stopPoints: ride.stopPoints,
+          departureTime: ride.departureTime,
+          transportType: ride.transportType,
+          seatsAvailable: ride.seatsAvailable,
+          femaleOnly: ride.femaleOnly,
+          isActive: ride.isActive,
+          host: {
+            username: host.username,
+            university: host.university
+          },
+          participants: participantUsers
+        };
+
+        return rideWithDetails;
+      })
+    );
+
+    return ridesWithDetails;
   }
 
   async deleteRide(rideId: number, userId: number): Promise<void> {

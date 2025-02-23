@@ -61,29 +61,22 @@ export function setupAuth(app: Express) {
     store: storage.sessionStore,
     name: 'connect.sid',
     cookie: {
-      // Only use secure cookies in production
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
   };
 
-  if (process.env.NODE_ENV === 'production') {
-    app.set("trust proxy", 1);
-    if (sessionSettings.cookie) {
-      sessionSettings.cookie.secure = true;
-    }
-  }
-
+  app.set("trust proxy", 1);
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Type the parameters explicitly
   passport.use(
-    new LocalStrategy(async (username: string, password: string, done: any) => {
+    new LocalStrategy(async (username, password, done) => {
       try {
+        // Check for too many login attempts
         if (!checkLoginAttempts(username)) {
           return done(null, false, { message: "Too many login attempts. Please try again later." });
         }
@@ -94,12 +87,13 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Invalid username or password" });
         }
 
+        // Reset login attempts on successful login
         loginAttempts.delete(username);
         return done(null, user);
       } catch (error) {
         return done(error);
       }
-    })
+    }),
   );
 
   passport.serializeUser((user, done) => done(null, user.id));
