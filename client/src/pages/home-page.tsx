@@ -14,10 +14,9 @@ import { Plus, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Ride, User } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
-import { debounce } from "@/lib/utils";
 
 // Extended type for rides with full details
 type RideWithDetails = Omit<Ride, 'participants'> & {
@@ -27,6 +26,7 @@ type RideWithDetails = Omit<Ride, 'participants'> & {
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [inputValue, setInputValue] = useState("");  // New state for input value
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const { user } = useAuth();
 
@@ -43,22 +43,27 @@ export default function HomePage() {
     return { activeRide: active, otherRides: others };
   }, [rides, user?.id]);
 
-  // Debounced search handler
-  const debouncedSetSearchQuery = useCallback(
-    debounce((value: string) => setSearchQuery(value), 300),
-    [],
-  );
+  // Handle search submit
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearchQuery(inputValue);
+  };
+
+  // Clear search
+  const clearSearch = () => {
+    setInputValue("");
+    setSearchQuery("");
+  };
 
   // Filter rides based on search query
   const filteredRides = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) {
-      // If no search query, return active ride first, then others
       return activeRide ? [activeRide, ...otherRides] : otherRides;
     }
 
     // Filter function with ride number support
-    const matchesSearch = (ride: Ride) => {
+    const matchesSearch = (ride: RideWithDetails) => {
       const rideNumber = `ride#${ride.id}`;
       const searchableText = `
         ${rideNumber}
@@ -119,28 +124,27 @@ export default function HomePage() {
         </Sheet>
       </header>
 
-      <div className="relative mb-6">
+      <form onSubmit={handleSearchSubmit} className="relative mb-6">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
         <Input
-          value={searchQuery}
-          onChange={(e) => debouncedSetSearchQuery(e.target.value)}
+          type="search"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
           className="pl-9 pr-9 h-12 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
-          placeholder="Search by Ride Number or Location..."
+          placeholder="Search by Ride Number or Location... (Press Enter)"
         />
-        {searchQuery && (
+        {inputValue && (
           <Button
+            type="button"
             variant="ghost"
             size="icon"
             className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8"
-            onClick={() => {
-              setSearchQuery("");
-              debouncedSetSearchQuery("");
-            }}
+            onClick={clearSearch}
           >
             <X className="h-4 w-4" />
           </Button>
         )}
-      </div>
+      </form>
 
       <AnimatePresence mode="popLayout">
         <div className="space-y-4">
