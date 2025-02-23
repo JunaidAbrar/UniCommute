@@ -58,24 +58,26 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
                   msg.userId === user?.id ? "items-end" : "items-start"
                 )}
               >
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="font-medium">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-semibold text-foreground">
                     {msg.userId === user?.id ? "You" : msg.username || 'Unknown'}
                   </span>
-                  <span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Card
+                    className={cn(
+                      "px-3 py-2 max-w-[80%]",
+                      msg.userId === user?.id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    )}
+                  >
+                    {msg.content}
+                  </Card>
+                  <span className="text-xs text-muted-foreground">
                     {format(new Date(msg.timestamp), "h:mm a")}
                   </span>
                 </div>
-                <Card
-                  className={cn(
-                    "px-3 py-2 max-w-[80%]",
-                    msg.userId === user?.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  )}
-                >
-                  {msg.content}
-                </Card>
               </div>
             ))}
           </div>
