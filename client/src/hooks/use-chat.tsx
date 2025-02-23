@@ -13,57 +13,75 @@ export function useChat(rideId: number) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isConnecting, setIsConnecting] = useState(true);
   const socketRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
 
   // Initialize WebSocket connection
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/chat/${rideId}`;
+    const connect = () => {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/ws/chat/${rideId}`;
 
-    const socket = new WebSocket(wsUrl);
-    socketRef.current = socket;
+      const socket = new WebSocket(wsUrl);
+      socketRef.current = socket;
 
-    socket.onopen = () => {
-      setIsConnecting(false);
-      console.log("WebSocket connected");
-    };
+      socket.onopen = () => {
+        setIsConnecting(false);
+        console.log("WebSocket connected");
 
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'message') {
-        setMessages(prev => [...prev, data.message]);
-      } else if (data.type === 'history') {
-        setMessages(data.messages);
-      }
-    };
-
-    socket.onerror = (error) => {
-      console.error("WebSocket error:", error);
-      toast({
-        title: "Connection Error",
-        description: "Failed to connect to chat. Please try again.",
-        variant: "destructive",
-      });
-    };
-
-    socket.onclose = () => {
-      setIsConnecting(true);
-      toast({
-        title: "Disconnected",
-        description: "Chat connection lost. Attempting to reconnect...",
-        variant: "destructive",
-      });
-
-      // Attempt to reconnect after 3 seconds
-      setTimeout(() => {
-        if (socketRef.current?.readyState === WebSocket.CLOSED) {
-          socketRef.current = null;
+        // Clear any pending reconnection attempts
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = undefined;
         }
-      }, 3000);
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'message') {
+            setMessages(prev => [...prev, data.message]);
+          } else if (data.type === 'history') {
+            setMessages(data.messages);
+          }
+        } catch (error) {
+          console.error('Error parsing message:', error);
+        }
+      };
+
+      socket.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        toast({
+          title: "Connection Error",
+          description: "Failed to connect to chat. Please try again.",
+          variant: "destructive",
+        });
+      };
+
+      socket.onclose = () => {
+        setIsConnecting(true);
+        toast({
+          title: "Disconnected",
+          description: "Chat connection lost. Attempting to reconnect...",
+          variant: "destructive",
+        });
+
+        // Attempt to reconnect after a delay
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (socketRef.current?.readyState === WebSocket.CLOSED) {
+            connect();
+          }
+        }, 3000);
+      };
     };
+
+    connect();
 
     return () => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.close();
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (socketRef.current?.readyState === WebSocket.OPEN) {
+        socketRef.current.close();
       }
     };
   }, [rideId, toast]);

@@ -79,7 +79,7 @@ export function ChatWindow({ rideId }: { rideId: number }) {
                   {msg.username ? msg.username.charAt(0).toUpperCase() : (msg.userId === user?.id ? "You" : "U")}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 max-w-[75%]">
                 <span className={cn(
                   "text-xs font-medium",
                   msg.userId === user?.id ? "text-right" : "text-left"
@@ -88,7 +88,7 @@ export function ChatWindow({ rideId }: { rideId: number }) {
                 </span>
                 <Card
                   className={cn(
-                    "p-3 max-w-[75%]",
+                    "p-3",
                     msg.userId === user?.id
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted"

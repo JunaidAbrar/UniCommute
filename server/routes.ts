@@ -50,13 +50,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (message.type === 'message') {
           const { content, userId, username } = message;
 
-          // Store message in database - matching schema format
-          const storedMessage = await storage.createMessage(userId, {
+          // Match the schema format from shared/schema.ts
+          const parsedMessage = {
             content,
             rideId,
-            type: 'text',
-            timestamp: new Date().toISOString()
-          });
+            type: 'text' as const,
+          };
+
+          // Validate and store message
+          const parseResult = insertMessageSchema.safeParse(parsedMessage);
+          if (!parseResult.success) {
+            console.error('Invalid message format:', parseResult.error);
+            return;
+          }
+
+          // Store message in database
+          const storedMessage = await storage.createMessage(userId, parseResult.data);
 
           // Broadcast to all clients in this ride's chat
           const broadcastMessage = {
@@ -79,7 +88,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Existing HTTP routes
+  // Existing HTTP routes 
   app.post("/api/rides", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
