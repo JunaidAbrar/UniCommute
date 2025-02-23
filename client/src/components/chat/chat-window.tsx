@@ -17,12 +17,15 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
   const { messages, sendMessage, isConnected, error } = useChat(rideId);
   const [newMessage, setNewMessage] = useState('');
   const { user } = useAuth();
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    if (scrollRef.current) {
+      const scrollElement = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollElement) {
+        scrollElement.scrollTop = scrollElement.scrollHeight;
+      }
     }
   }, [messages]);
 
@@ -42,7 +45,7 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
           </div>
         )}
         <ScrollArea 
-          ref={scrollAreaRef}
+          ref={scrollRef}
           className="flex-1 pr-4"
           style={{ height: 'calc(100vh - 240px)' }}
         >
@@ -57,7 +60,7 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
               >
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="font-medium">
-                    {msg.userId === user?.id ? "You" : msg.username}
+                    {msg.userId === user?.id ? "You" : msg.username || 'Unknown'}
                   </span>
                   <span>
                     {format(new Date(msg.timestamp), "h:mm a")}

@@ -49,7 +49,7 @@ export function useChat(rideId: number) {
           const data = JSON.parse(event.data);
           console.log('Received WebSocket message:', data);
 
-          if (data.type === 'message') {
+          if (data.type === 'message' && data.message) {
             setMessages(prev => {
               // Avoid duplicate messages
               if (prev.some(m => m.id === data.message.id)) {
