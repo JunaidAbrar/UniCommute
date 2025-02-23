@@ -6,7 +6,6 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser, insertUserSchema } from "@shared/schema";
-import { EmailService } from "./email";
 
 declare global {
   namespace Express {
@@ -88,11 +87,6 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Invalid username or password" });
         }
 
-        // Check if email is verified
-        if (!user.isVerified) {
-          return done(null, false, { message: "Please verify your email address before logging in" });
-        }
-
         // Reset login attempts on successful login
         loginAttempts.delete(username);
         return done(null, user);
@@ -115,7 +109,6 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Step 1: Register with email verification
   app.post("/api/register", async (req, res, next) => {
     try {
       // Validate registration data
@@ -132,44 +125,17 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Username already exists" });
       }
 
-      // Send verification email
-      try {
-        await EmailService.sendVerificationEmail(parseResult.data.email);
-      } catch (error) {
-        return res.status(500).json({ message: "Failed to send verification email" });
-      }
-
-      // Create unverified user
       const user = await storage.createUser({
         ...parseResult.data,
         password: await hashPassword(parseResult.data.password),
       });
 
-      res.status(201).json({ 
-        message: "Registration successful. Please check your email for verification code.",
-        userId: user.id
+      req.login(user, (err) => {
+        if (err) return next(err);
+        res.status(201).json(user);
       });
     } catch (error) {
       next(error);
-    }
-  });
-
-  // Step 2: Verify email with code
-  app.post("/api/verify-email", async (req, res) => {
-    const { email, code } = req.body;
-
-    try {
-      const isVerified = await EmailService.verifyCode(email, code);
-      if (isVerified) {
-        // Update user verification status
-        await storage.verifyUserEmail(email);
-        res.json({ message: "Email verified successfully. You can now log in." });
-      } else {
-        res.status(400).json({ message: "Invalid or expired verification code" });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Verification failed";
-      res.status(400).json({ message });
     }
   });
 

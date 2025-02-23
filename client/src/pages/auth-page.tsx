@@ -29,21 +29,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState } from "react";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = insertUserSchema.pick({ username: true, password: true });
-const verificationSchema = z.object({
-  email: z.string().email(),
-  code: z.string().min(6).max(6)
-});
 
 export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
-  const { toast } = useToast();
-  const [showVerification, setShowVerification] = useState(false);
-  const [registeredEmail, setRegisteredEmail] = useState("");
 
   const loginForm = useForm({
     resolver: zodResolver(loginSchema),
@@ -64,45 +54,6 @@ export default function AuthPage() {
     },
   });
 
-  const verificationForm = useForm({
-    resolver: zodResolver(verificationSchema),
-    defaultValues: {
-      email: "",
-      code: "",
-    },
-  });
-
-  const handleRegister = async (data: any) => {
-    try {
-      const response = await registerMutation.mutateAsync(data);
-      setRegisteredEmail(data.email);
-      setShowVerification(true);
-      toast({
-        title: "Registration successful",
-        description: "Please check your email for the verification code.",
-      });
-    } catch (error) {
-      // Error is handled by the mutation
-    }
-  };
-
-  const handleVerification = async (data: any) => {
-    try {
-      await apiRequest("POST", "/api/verify-email", data);
-      toast({
-        title: "Email verified",
-        description: "You can now log in with your credentials.",
-      });
-      setShowVerification(false);
-    } catch (error) {
-      toast({
-        title: "Verification failed",
-        description: error instanceof Error ? error.message : "Please try again",
-        variant: "destructive",
-      });
-    }
-  };
-
   if (user) {
     return <Redirect to="/" />;
   }
@@ -118,11 +69,10 @@ export default function AuthPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue={showVerification ? "verify" : "login"} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="login" disabled={showVerification}>Login</TabsTrigger>
-                <TabsTrigger value="register" disabled={showVerification}>Register</TabsTrigger>
-                <TabsTrigger value="verify" disabled={!showVerification}>Verify</TabsTrigger>
+            <Tabs defaultValue="login" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="login">Login</TabsTrigger>
+                <TabsTrigger value="register">Register</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
@@ -179,7 +129,9 @@ export default function AuthPage() {
               <TabsContent value="register">
                 <Form {...registerForm}>
                   <form
-                    onSubmit={registerForm.handleSubmit(handleRegister)}
+                    onSubmit={registerForm.handleSubmit((data) =>
+                      registerMutation.mutate(data)
+                    )}
                     className="space-y-4 mt-4"
                   >
                     <div className="space-y-4">
@@ -206,7 +158,7 @@ export default function AuthPage() {
                             <FormControl>
                               <Input 
                                 type="email"
-                                placeholder="Enter your BRACU email"
+                                placeholder="Enter your email"
                                 {...field}
                               />
                             </FormControl>
@@ -281,60 +233,6 @@ export default function AuthPage() {
                       disabled={registerMutation.isPending}
                     >
                       Register
-                    </Button>
-                  </form>
-                </Form>
-              </TabsContent>
-
-              <TabsContent value="verify">
-                <Form {...verificationForm}>
-                  <form
-                    onSubmit={verificationForm.handleSubmit(handleVerification)}
-                    className="space-y-4 mt-4"
-                  >
-                    <FormField
-                      control={verificationForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="email"
-                              placeholder="Enter your email"
-                              {...field}
-                              value={registeredEmail}
-                              disabled
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={verificationForm.control}
-                      name="code"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Verification Code</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter 6-digit code"
-                              maxLength={6}
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button
-                      type="submit"
-                      className="w-full mt-6"
-                    >
-                      Verify Email
                     </Button>
                   </form>
                 </Form>

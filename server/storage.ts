@@ -303,20 +303,6 @@ export class DatabaseStorage implements IStorage {
 
     return messagesWithUsers;
   }
-
-  async verifyUserEmail(email: string): Promise<User> {
-    const [user] = await db
-      .update(users)
-      .set({ isVerified: true })
-      .where(eq(users.email, email))
-      .returning();
-
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    return user;
-  }
 }
 
 export const storage = new DatabaseStorage();

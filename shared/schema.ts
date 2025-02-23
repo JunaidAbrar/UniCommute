@@ -9,16 +9,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   university: text("university").notNull(),
   gender: text("gender").notNull(),
-  avatar: text("avatar"),
-  isVerified: boolean("is_verified").notNull().default(false)
-});
-
-export const emailVerifications = pgTable("email_verifications", {
-  id: serial("id").primaryKey(),
-  email: text("email").notNull(),
-  code: text("code").notNull(),
-  expiresAt: timestamp("expires_at", { mode: 'string' }).notNull(),
-  createdAt: timestamp("created_at", { mode: 'string' }).notNull().defaultNow()
+  avatar: text("avatar")
 });
 
 export const transportType = z.enum(["PERSONAL", "UBER", "CNG"]);
@@ -57,24 +48,13 @@ export const messages = pgTable("messages", {
   attachment: text("attachment")
 });
 
-export const insertUserSchema = createInsertSchema(users)
-  .pick({
-    username: true,
-    password: true,
-    email: true,
-    university: true,
-    gender: true
-  })
-  .extend({
-    email: z.string()
-      .email("Invalid email address")
-      .refine(
-        (email) => email.endsWith("@g.bracu.ac.bd"),
-        "Only BRACU student email addresses (@g.bracu.ac.bd) are allowed"
-      )
-  });
-
-export const insertEmailVerificationSchema = createInsertSchema(emailVerifications);
+export const insertUserSchema = createInsertSchema(users).pick({
+  username: true,
+  password: true,
+  email: true,
+  university: true,
+  gender: true
+});
 
 export const insertRideSchema = z.object({
   origin: z.string().min(1, "Origin is required"),
@@ -99,13 +79,11 @@ export const insertMessageSchema = createInsertSchema(messages).pick({
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type InsertEmailVerification = z.infer<typeof insertEmailVerificationSchema>;
 export type InsertRide = z.infer<typeof insertRideSchema>;
 export type InsertRequest = z.infer<typeof insertRequestSchema>;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
 export type User = typeof users.$inferSelect;
-export type EmailVerification = typeof emailVerifications.$inferSelect;
 export type Ride = typeof rides.$inferSelect;
 export type Request = typeof requests.$inferSelect;
 export type Message = typeof messages.$inferSelect;
