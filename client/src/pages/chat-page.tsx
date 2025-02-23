@@ -2,21 +2,12 @@ import { ChatWindow } from "@/components/chat/chat-window";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import { useRoute, useLocation } from "wouter";
-import { useAuth } from "@/hooks/use-auth";
-import { useEffect } from "react";
 
 export default function ChatPage() {
   const [, params] = useRoute("/chat/:rideId");
   const [, navigate] = useLocation();
-  const { user, isLoading } = useAuth();
 
-  useEffect(() => {
-    if (!isLoading && !user) {
-      navigate('/auth');
-    }
-  }, [user, isLoading, navigate]);
-
-  if (!params?.rideId || !user) {
+  if (!params?.rideId) {
     return null;
   }
 
@@ -33,7 +24,7 @@ export default function ChatPage() {
           Back to Rides
         </Button>
       </header>
-
+      
       <ChatWindow rideId={parseInt(params.rideId)} />
     </div>
   );

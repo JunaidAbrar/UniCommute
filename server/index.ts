@@ -11,14 +11,12 @@ import { log } from "./vite";
 const app = express();
 const httpServer = createServer(app);
 
-// Body parsing middleware first
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Set up WebSocket server
 const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-// Logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -49,13 +47,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Trust first proxy for secure cookies in production
-app.set("trust proxy", 1);
-
-// Set up authentication (includes session setup) before routes and websocket
+// Set up authentication before routes and websocket
 setupAuth(app);
 
-// Set up WebSocket with session support
+// Set up WebSocket after auth but before routes
 setupWebSocket(wss, app);
 
 // Set up routes
@@ -71,7 +66,7 @@ if (app.get("env") === "development") {
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
-  log(`Error: ${message}`);
+
   res.status(status).json({ message });
   throw err;
 });

@@ -27,7 +27,6 @@ export interface IStorage {
 
 export interface WebSocketClient extends WebSocket {
   userId?: number;
-  username?: string;
   rideId?: number;
 }
 
