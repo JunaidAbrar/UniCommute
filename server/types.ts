@@ -9,6 +9,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  verifyUserEmail(email: string): Promise<User>; // New method
 
   // Ride Operations
   createRide(hostId: number, ride: InsertRide): Promise<Ride>;
