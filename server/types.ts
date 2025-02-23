@@ -14,7 +14,7 @@ export interface IStorage {
   createRide(hostId: number, ride: InsertRide): Promise<Ride>;
   getRide(id: number): Promise<Ride | undefined>;
   getRideWithHost(id: number): Promise<(Ride & { host: User }) | undefined>;
-  getActiveRides(): Promise<(Ride & { host: User })[]>;
+  getActiveRides(): Promise<(Ride & { host: Pick<User, 'username' | 'university'> })[]>;
 
   // Request Operations
   createRequest(userId: number, request: InsertRequest): Promise<Request>;
@@ -28,6 +28,7 @@ export interface IStorage {
 export interface WebSocketClient extends WebSocket {
   userId?: number;
   rideId?: number;
+  isAlive: boolean;  // Add isAlive property
 }
 
 export interface ChatRoom {

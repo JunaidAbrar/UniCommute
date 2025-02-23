@@ -12,13 +12,16 @@ const rooms = new Map<string, ChatRoom>();
 export function setupWebSocket(wss: WebSocketServer, app: Express) {
   wss.on('connection', async (ws: WebSocketClient, req: IncomingMessage) => {
     try {
-      // Extract session ID from cookie
-      const cookieHeader = req.headers.cookie || '';
+      // Extract session ID from cookie with better error handling
+      const cookieHeader = req.headers.cookie;
+      if (!cookieHeader) {
+        ws.close(1008, 'No cookies found');
+        return;
+      }
+
       const cookies = parseCookie(cookieHeader);
       const sessionID = cookies['connect.sid'];
-
       if (!sessionID) {
-        console.log('WebSocket connection rejected: No session ID found');
         ws.close(1008, 'No session ID found');
         return;
       }
@@ -30,7 +33,6 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
         .shift();
 
       if (!cleanSessionID) {
-        console.log('WebSocket connection rejected: Invalid session ID format');
         ws.close(1008, 'Invalid session ID format');
         return;
       }
@@ -38,19 +40,17 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
       // Get session data with better error handling
       const sessionData: any = await new Promise((resolve, reject) => {
         storage.sessionStore.get(cleanSessionID, (err, session) => {
-          if (err) {
-            console.error('Session store error:', err);
-            reject(new Error('Failed to retrieve session'));
-          } else if (!session) {
-            reject(new Error('Session not found'));
-          } else {
-            resolve(session);
-          }
+          if (err) reject(new Error('Failed to retrieve session'));
+          else if (!session) reject(new Error('Session not found'));
+          else resolve(session);
         });
+      }).catch(error => {
+        console.error('Session retrieval error:', error);
+        ws.close(1008, error.message);
+        return null;
       });
 
-      if (!sessionData?.passport?.user) {
-        console.log('WebSocket connection rejected: No authenticated user');
+      if (!sessionData || !sessionData.passport?.user) {
         ws.close(1008, 'Authentication required');
         return;
       }
@@ -60,13 +60,21 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
 
       // Initialize client info
       ws.userId = userId;
+      ws.isAlive = true;
 
       // Send immediate connection confirmation
-      ws.send(JSON.stringify({ 
-        type: 'connected',
-        userId,
-        message: 'Successfully connected to chat'
-      }));
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ 
+          type: 'connected',
+          userId,
+          message: 'Successfully connected to chat'
+        }));
+      }
+
+      // Setup ping/pong for connection health monitoring
+      ws.on('pong', () => {
+        ws.isAlive = true;
+      });
 
       ws.on('message', async (message: string) => {
         try {
@@ -84,11 +92,12 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
               handleLeave(ws);
               break;
             default:
-              console.log('Unknown message type:', data.type);
-              ws.send(JSON.stringify({
-                type: 'error',
-                message: 'Unknown message type'
-              }));
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: 'error',
+                  message: 'Unknown message type'
+                }));
+              }
           }
         } catch (error) {
           console.error('Error processing message:', error);
@@ -117,6 +126,23 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
         ws.close(1011, error instanceof Error ? error.message : 'Internal server error');
       }
     }
+  });
+
+  // Setup connection health monitoring
+  const interval = setInterval(() => {
+    wss.clients.forEach((ws: WebSocketClient) => {
+      if (ws.isAlive === false) {
+        console.log(`Terminating inactive connection for user ${ws.userId}`);
+        return ws.terminate();
+      }
+
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+
+  wss.on('close', () => {
+    clearInterval(interval);
   });
 }
 

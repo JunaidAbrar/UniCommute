@@ -1,24 +1,46 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { insertRideSchema, insertRequestSchema, insertMessageSchema } from "@shared/schema";
+import { insertRideSchema, insertRequestSchema, insertMessageSchema, User } from "@shared/schema";
+import { WebSocketServer } from 'ws';
+import { setupWebSocket } from './websocket';
+
+// Extend Express Request type to include user with proper typing
+interface AuthenticatedRequest extends Request {
+  user: User;  // Use the User type from schema
+}
 
 export async function setupRoutes(app: Express): Promise<Server> {
   setupAuth(app);
 
   const httpServer = createServer(app);
 
-  // Authentication check middleware
-  const requireAuth = (req: any, res: any, next: any) => {
+  // Setup WebSocket server with distinct path
+  const wss = new WebSocketServer({ 
+    server: httpServer,
+    path: '/ws'
+  });
+
+  setupWebSocket(wss, app);
+
+  // Authentication check middleware with proper typing
+  const requireAuth = (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Authentication required" });
+      return res.status(401).json({ 
+        message: "Authentication required",
+        code: "AUTH_REQUIRED"
+      });
     }
     next();
   };
 
   // Rides
-  app.post("/api/rides", requireAuth, async (req, res) => {
+  app.post("/api/rides", requireAuth, async (req: AuthenticatedRequest, res) => {
     const parseResult = insertRideSchema.safeParse(req.body);
     if (!parseResult.success) return res.status(400).json(parseResult.error);
 
@@ -40,12 +62,12 @@ export async function setupRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/rides", requireAuth, async (req, res) => {
+  app.get("/api/rides", requireAuth, async (req: AuthenticatedRequest, res) => {
     const rides = await storage.getActiveRides();
     res.json(rides);
   });
 
-  app.delete("/api/rides/:id", requireAuth, async (req, res) => {
+  app.delete("/api/rides/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       await storage.deleteRide(parseInt(req.params.id), req.user.id);
       res.sendStatus(200);
@@ -54,7 +76,7 @@ export async function setupRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/rides/:id/leave", requireAuth, async (req, res) => {
+  app.post("/api/rides/:id/leave", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const ride = await storage.getRide(parseInt(req.params.id));
       if (!ride) throw new Error("Ride not found");
@@ -77,7 +99,7 @@ export async function setupRoutes(app: Express): Promise<Server> {
   });
 
   // Requests
-  app.post("/api/requests", requireAuth, async (req, res) => {
+  app.post("/api/requests", requireAuth, async (req: AuthenticatedRequest, res) => {
     const parseResult = insertRequestSchema.safeParse(req.body);
     if (!parseResult.success) return res.status(400).json(parseResult.error);
 
@@ -92,13 +114,13 @@ export async function setupRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/rides/:rideId/requests", requireAuth, async (req, res) => {
+  app.get("/api/rides/:rideId/requests", requireAuth, async (req: AuthenticatedRequest, res) => {
     const requests = await storage.getRequestsByRide(parseInt(req.params.rideId));
     res.json(requests);
   });
 
   // Messages
-  app.get("/api/rides/:rideId/messages", requireAuth, async (req, res) => {
+  app.get("/api/rides/:rideId/messages", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const messages = await storage.getMessagesByRide(parseInt(req.params.rideId));
       res.json(messages);
@@ -109,7 +131,7 @@ export async function setupRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/rides/:rideId/messages", requireAuth, async (req, res) => {
+  app.post("/api/rides/:rideId/messages", requireAuth, async (req: AuthenticatedRequest, res) => {
     const parseResult = insertMessageSchema.safeParse({
       ...req.body,
       rideId: parseInt(req.params.rideId)
@@ -130,7 +152,7 @@ export async function setupRoutes(app: Express): Promise<Server> {
   });
 
   // Add new route for kicking members
-  app.post("/api/rides/:rideId/kick/:userId", requireAuth, async (req, res) => {
+  app.post("/api/rides/:rideId/kick/:userId", requireAuth, async (req: AuthenticatedRequest, res) => {
     const rideId = parseInt(req.params.rideId);
     const userIdToKick = parseInt(req.params.userId);
 
