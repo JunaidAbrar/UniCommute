@@ -36,12 +36,33 @@ app.use((req, res, next) => {
   next();
 });
 
+// Track active server instances
+let activeServer: any | null = null;
+
+const forceCleanup = () => {
+  log('Force cleaning up any existing server instances...');
+  if (activeServer) {
+    try {
+      activeServer.close(() => {
+        log('Successfully closed existing server instance');
+      });
+    } catch (error) {
+      log(`Error closing existing server: ${error}`);
+    }
+    activeServer = null;
+  }
+};
+
 async function startServer(port: number): Promise<void> {
   try {
     log(`Attempting to start server on port ${port}...`);
 
+    // Force cleanup any existing instances
+    forceCleanup();
+
     // Create server first to set up WebSocket
     const server = await registerRoutes(app);
+    activeServer = server;
 
     // Set up error handling middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -58,6 +79,8 @@ async function startServer(port: number): Promise<void> {
         resolve();
       }).on('error', (error: any) => {
         if (error.code === 'EADDRINUSE') {
+          log(`Port ${port} is in use, forcing cleanup and retry...`);
+          forceCleanup();
           reject(new Error(`Port ${port} is in use`));
         } else {
           reject(error);
@@ -78,10 +101,14 @@ async function startServer(port: number): Promise<void> {
 
     // Handle cleanup on server shutdown
     const cleanup = () => {
-      server.close(() => {
-        log('HTTP server closed');
+      if (activeServer) {
+        activeServer.close(() => {
+          log('HTTP server closed');
+          process.exit(0);
+        });
+      } else {
         process.exit(0);
-      });
+      }
     };
 
     process.on('SIGTERM', () => {
@@ -96,6 +123,7 @@ async function startServer(port: number): Promise<void> {
 
   } catch (error) {
     log(`Server startup failed: ${error}`);
+    forceCleanup(); // Ensure cleanup on error
     throw error;
   }
 }
