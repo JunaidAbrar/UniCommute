@@ -60,7 +60,7 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
               >
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="font-medium">
-                    {msg.userId === user?.id ? "You" : msg.username || 'Unknown'}
+                    {msg.userId === user?.id ? "You" : msg.username}
                   </span>
                   <span>
                     {format(new Date(msg.timestamp), "h:mm a")}
