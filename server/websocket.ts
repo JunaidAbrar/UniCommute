@@ -14,8 +14,6 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
     try {
       // Extract session ID from cookie
       const cookieHeader = req.headers.cookie || '';
-      console.log('WebSocket connection attempt with cookie:', cookieHeader);
-
       const cookies = parseCookie(cookieHeader);
       const sessionID = cookies['connect.sid'];
 
@@ -25,26 +23,35 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
         return;
       }
 
-      // Clean session ID (remove 's:' prefix and signature)
-      const cleanSessionID = decodeURIComponent(sessionID.replace(/^s:/, '').split('.')[0]);
-      console.log('Clean session ID:', cleanSessionID);
+      // Parse session ID more carefully
+      const cleanSessionID = decodeURIComponent(sessionID)
+        .replace(/^s:/, '')
+        .split('.')
+        .shift();
 
-      // Get session data
+      if (!cleanSessionID) {
+        console.log('WebSocket connection rejected: Invalid session ID format');
+        ws.close(1008, 'Invalid session ID format');
+        return;
+      }
+
+      // Get session data with better error handling
       const sessionData: any = await new Promise((resolve, reject) => {
         storage.sessionStore.get(cleanSessionID, (err, session) => {
           if (err) {
             console.error('Session store error:', err);
-            reject(err);
+            reject(new Error('Failed to retrieve session'));
+          } else if (!session) {
+            reject(new Error('Session not found'));
           } else {
-            console.log('Session data retrieved:', session);
             resolve(session);
           }
         });
       });
 
-      if (!sessionData || !sessionData.passport?.user) {
-        console.log('Invalid session data:', sessionData);
-        ws.close(1008, 'Invalid session');
+      if (!sessionData?.passport?.user) {
+        console.log('WebSocket connection rejected: No authenticated user');
+        ws.close(1008, 'Authentication required');
         return;
       }
 
@@ -53,6 +60,13 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
 
       // Initialize client info
       ws.userId = userId;
+
+      // Send immediate connection confirmation
+      ws.send(JSON.stringify({ 
+        type: 'connected',
+        userId,
+        message: 'Successfully connected to chat'
+      }));
 
       ws.on('message', async (message: string) => {
         try {
@@ -71,13 +85,17 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
               break;
             default:
               console.log('Unknown message type:', data.type);
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'Unknown message type'
+              }));
           }
         } catch (error) {
           console.error('Error processing message:', error);
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ 
               type: 'error', 
-              message: 'Failed to process message' 
+              message: error instanceof Error ? error.message : 'Failed to process message' 
             }));
           }
         }
@@ -96,7 +114,7 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
     } catch (error) {
       console.error('WebSocket connection error:', error);
       if (ws.readyState === WebSocket.OPEN) {
-        ws.close(1011, 'Internal server error');
+        ws.close(1011, error instanceof Error ? error.message : 'Internal server error');
       }
     }
   });

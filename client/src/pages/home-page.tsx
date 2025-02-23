@@ -3,6 +3,7 @@ import { RideForm } from "@/components/rides/ride-form";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -53,12 +54,11 @@ export default function HomePage() {
   const filteredRides = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) {
-      // If no search query, return active ride first, then others
       return activeRide ? [activeRide, ...otherRides] : otherRides;
     }
 
     // Filter function with ride number support
-    const matchesSearch = (ride: Ride) => {
+    const matchesSearch = (ride: RideWithDetails) => {
       const rideNumber = `ride#${ride.id}`;
       const searchableText = `
         ${rideNumber}
@@ -108,6 +108,10 @@ export default function HomePage() {
             side="bottom"
             className="h-[90vh] sm:h-full rounded-t-[10px] sm:rounded-t-none"
           >
+            <SheetClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </SheetClose>
             <SheetHeader className="sticky top-0 bg-background z-10 pb-4">
               <SheetTitle>Create a New Ride</SheetTitle>
               <SheetDescription>

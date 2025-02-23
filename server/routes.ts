@@ -9,10 +9,16 @@ export async function setupRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
-  // Rides
-  app.post("/api/rides", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+  // Authentication check middleware
+  const requireAuth = (req: any, res: any, next: any) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    next();
+  };
 
+  // Rides
+  app.post("/api/rides", requireAuth, async (req, res) => {
     const parseResult = insertRideSchema.safeParse(req.body);
     if (!parseResult.success) return res.status(400).json(parseResult.error);
 
@@ -34,15 +40,12 @@ export async function setupRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/rides", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+  app.get("/api/rides", requireAuth, async (req, res) => {
     const rides = await storage.getActiveRides();
     res.json(rides);
   });
 
-  app.delete("/api/rides/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-
+  app.delete("/api/rides/:id", requireAuth, async (req, res) => {
     try {
       await storage.deleteRide(parseInt(req.params.id), req.user.id);
       res.sendStatus(200);
@@ -51,9 +54,7 @@ export async function setupRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/rides/:id/leave", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-
+  app.post("/api/rides/:id/leave", requireAuth, async (req, res) => {
     try {
       const ride = await storage.getRide(parseInt(req.params.id));
       if (!ride) throw new Error("Ride not found");
@@ -76,9 +77,7 @@ export async function setupRoutes(app: Express): Promise<Server> {
   });
 
   // Requests
-  app.post("/api/requests", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-
+  app.post("/api/requests", requireAuth, async (req, res) => {
     const parseResult = insertRequestSchema.safeParse(req.body);
     if (!parseResult.success) return res.status(400).json(parseResult.error);
 
@@ -93,16 +92,13 @@ export async function setupRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/rides/:rideId/requests", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+  app.get("/api/rides/:rideId/requests", requireAuth, async (req, res) => {
     const requests = await storage.getRequestsByRide(parseInt(req.params.rideId));
     res.json(requests);
   });
 
   // Messages
-  app.get("/api/rides/:rideId/messages", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-
+  app.get("/api/rides/:rideId/messages", requireAuth, async (req, res) => {
     try {
       const messages = await storage.getMessagesByRide(parseInt(req.params.rideId));
       res.json(messages);
@@ -113,9 +109,7 @@ export async function setupRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/rides/:rideId/messages", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-
+  app.post("/api/rides/:rideId/messages", requireAuth, async (req, res) => {
     const parseResult = insertMessageSchema.safeParse({
       ...req.body,
       rideId: parseInt(req.params.rideId)
@@ -136,9 +130,7 @@ export async function setupRoutes(app: Express): Promise<Server> {
   });
 
   // Add new route for kicking members
-  app.post("/api/rides/:rideId/kick/:userId", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-
+  app.post("/api/rides/:rideId/kick/:userId", requireAuth, async (req, res) => {
     const rideId = parseInt(req.params.rideId);
     const userIdToKick = parseInt(req.params.userId);
 
