@@ -20,7 +20,7 @@ export function useChat(rideId: number) {
 
   const connect = useCallback(() => {
     if (!user) {
-      console.log('No user, skipping connection');
+      setError('Authentication required');
       return;
     }
 
@@ -55,11 +55,17 @@ export function useChat(rideId: number) {
               if (prev.some(m => m.id === data.message.id)) {
                 return prev;
               }
-              return [...prev, {
+              // Ensure we preserve the username from the WebSocket message
+              const newMessage = {
                 ...data.message,
-                timestamp: new Date(data.message.timestamp)
-              }];
+                timestamp: new Date(data.message.timestamp),
+                username: data.message.username // Explicitly preserve username
+              };
+              console.log('Adding message with username:', newMessage.username);
+              return [...prev, newMessage];
             });
+          } else if (data.type === 'error') {
+            setError(data.message);
           }
         } catch (err) {
           console.error('Error parsing message:', err);
@@ -69,7 +75,6 @@ export function useChat(rideId: number) {
       ws.onclose = () => {
         console.log('WebSocket disconnected, scheduling reconnect');
         setIsConnected(false);
-        // Attempt to reconnect after 5 seconds
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
         }
@@ -92,7 +97,6 @@ export function useChat(rideId: number) {
     connect();
 
     return () => {
-      console.log('Cleaning up WebSocket connection');
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: 'leave' }));
         wsRef.current.close();
@@ -111,13 +115,21 @@ export function useChat(rideId: number) {
     }
 
     console.log('Loading existing messages for ride:', rideId);
-    fetch(`/api/rides/${rideId}/messages`)
-      .then(res => res.json())
+    fetch(`/api/rides/${rideId}/messages`, {
+      credentials: 'include' // Ensure cookies are sent
+    })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        return res.json();
+      })
       .then(data => {
         console.log('Loaded messages:', data);
         setMessages(data.map((msg: any) => ({
           ...msg,
-          timestamp: new Date(msg.timestamp)
+          timestamp: new Date(msg.timestamp),
+          username: msg.username || 'Anonymous'
         })));
       })
       .catch(err => {

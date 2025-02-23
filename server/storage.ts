@@ -237,11 +237,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMessagesByRide(rideId: number): Promise<Message[]> {
-    return await db
-      .select()
+    const messagesWithUsers = await db
+      .select({
+        id: messages.id,
+        rideId: messages.rideId,
+        userId: messages.userId,
+        content: messages.content,
+        type: messages.type,
+        attachment: messages.attachment,
+        timestamp: messages.timestamp,
+        username: users.username
+      })
       .from(messages)
+      .innerJoin(users, eq(messages.userId, users.id))
       .where(eq(messages.rideId, rideId))
       .orderBy(messages.timestamp);
+
+    return messagesWithUsers;
   }
 }
 

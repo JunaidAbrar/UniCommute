@@ -36,6 +36,14 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
     }
   };
 
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p>Please log in to participate in chat.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen pb-16">
       <Card className="flex-1 flex flex-col p-4 min-h-0">
@@ -51,8 +59,9 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
         >
           <div className="flex flex-col gap-4">
             {messages.map((msg) => {
-              const isCurrentUser = msg.userId === user?.id;
-              const displayName = isCurrentUser ? "You" : (msg.username || "Anonymous");
+              const isCurrentUser = msg.userId === user.id;
+              // Ensure we use the username from the message data
+              const displayName = msg.username || "Anonymous";
 
               return (
                 <div
@@ -102,7 +111,7 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
           />
           <Button 
             onClick={handleSend} 
-            disabled={!isConnected}
+            disabled={!isConnected || !user}
           >
             Send
           </Button>
