@@ -142,7 +142,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                       <Input 
                         type="search"
                         placeholder="Enter pickup location"
-                        className="h-12 pl-4 pr-10"
+                        className="h-12 pl-4 pr-10 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
                         autoComplete="street-address"
                         autoCapitalize="words"
                         {...field}
@@ -189,7 +189,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                       placeholder={`Stop ${index + 1}`}
                       value={stop}
                       onChange={(e) => updateStopPoint(index, e.target.value)}
-                      className="h-12 pl-4 pr-10"
+                      className="h-12 pl-4 pr-10 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
                       autoComplete="street-address"
                       autoCapitalize="words"
                     />
@@ -229,7 +229,7 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                       <Input 
                         type="search"
                         placeholder="Enter destination"
-                        className="h-12 pl-4 pr-10"
+                        className="h-12 pl-4 pr-10 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
                         autoComplete="street-address"
                         autoCapitalize="words"
                         {...field}
@@ -251,7 +251,6 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
                 </FormItem>
               )}
             />
-
             <FormField
               control={form.control}
               name="departureTime"
