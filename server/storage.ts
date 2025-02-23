@@ -209,6 +209,11 @@ export class DatabaseStorage implements IStorage {
       throw new Error("You already have an active ride. Leave your current ride before joining another.");
     }
 
+    // Check if ride is full
+    if (ride.participants.length >= ride.seatsAvailable) {
+      throw new Error("This ride is full. No more seats available.");
+    }
+
     // Check female-only ride restriction
     if (ride.femaleOnly) {
       const user = await this.getUser(userId);

@@ -16,6 +16,13 @@ export async function setupRoutes(app: Express): Promise<Server> {
     const parseResult = insertRideSchema.safeParse(req.body);
     if (!parseResult.success) return res.status(400).json(parseResult.error);
 
+    // Validate seats available
+    if (parseResult.data.seatsAvailable < 1) {
+      return res.status(400).json({
+        message: "Number of available seats must be at least 1"
+      });
+    }
+
     try {
       const ride = await storage.createRide(req.user.id, parseResult.data);
       const rides = await storage.getActiveRides();
