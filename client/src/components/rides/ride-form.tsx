@@ -30,8 +30,6 @@ import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
-import { SheetContent, SheetClose } from "@/components/ui/sheet"; // Import missing components
-
 
 export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
   const { toast } = useToast();
@@ -421,21 +419,16 @@ export function RideForm({ onSuccess }: { onSuccess?: () => void }) {
           </form>
         </Form>
       </ScrollArea>
-      <SheetContent side="bottom" className="h-[90vh] sm:h-full rounded-t-[10px] sm:rounded-t-none"> {/* Added SheetContent */}
-        <SheetClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary"> {/* Added SheetClose */}
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </SheetClose>
-        <div className="sticky bottom-0 left-0 right-0 p-6 bg-background border-t">
-          <Button 
-            type="submit"
-            onClick={form.handleSubmit(onSubmit)}
-            className="w-full h-12 active:scale-[0.98] transition-transform touch-none"
-          >
-            Create Ride
-          </Button>
-        </div>
-      </SheetContent> {/* Closing SheetContent */}
+
+      <div className="sticky bottom-0 left-0 right-0 p-6 bg-background border-t">
+        <Button 
+          type="submit"
+          onClick={form.handleSubmit(onSubmit)}
+          className="w-full h-12 active:scale-[0.98] transition-transform touch-none"
+        >
+          Create Ride
+        </Button>
+      </div>
     </div>
   );
 }
