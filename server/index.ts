@@ -39,26 +39,22 @@ app.use((req, res, next) => {
 async function startServer(port: number): Promise<void> {
   try {
     log(`Attempting to start server on port ${port}...`);
+
+    // Create server first to set up WebSocket
     const server = await registerRoutes(app);
 
+    // Set up error handling middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
       res.status(status).json({ message });
-      throw err;
+      log(`Error: ${err.message}`);
     });
 
-    if (app.get("env") === "development") {
-      log('Setting up Vite development server...');
-      await setupVite(app, server);
-    } else {
-      log('Setting up static file serving...');
-      serveStatic(app);
-    }
-
+    // Listen on port before setting up Vite to ensure WebSocket server binds first
     await new Promise<void>((resolve, reject) => {
       server.listen(port, "0.0.0.0", () => {
-        log(`Server successfully started on port ${port}`);
+        log(`HTTP and WebSocket servers started on port ${port}`);
         resolve();
       }).on('error', (error: any) => {
         if (error.code === 'EADDRINUSE') {
@@ -67,34 +63,46 @@ async function startServer(port: number): Promise<void> {
           reject(error);
         }
       });
-
-      // Handle cleanup on server shutdown
-      const cleanup = () => {
-        server.close(() => {
-          log('HTTP server closed');
-          process.exit(0);
-        });
-      };
-
-      process.on('SIGTERM', () => {
-        log('SIGTERM signal received: closing HTTP server');
-        cleanup();
-      });
-
-      process.on('SIGINT', () => {
-        log('SIGINT signal received: closing HTTP server');
-        cleanup();
-      });
     });
+
+    // Now set up Vite or static serving
+    if (app.get("env") === "development") {
+      log('Setting up Vite development server...');
+      await setupVite(app, server);
+      log('Vite development server ready');
+    } else {
+      log('Setting up static file serving...');
+      serveStatic(app);
+      log('Static file serving ready');
+    }
+
+    // Handle cleanup on server shutdown
+    const cleanup = () => {
+      server.close(() => {
+        log('HTTP server closed');
+        process.exit(0);
+      });
+    };
+
+    process.on('SIGTERM', () => {
+      log('SIGTERM signal received: closing HTTP server');
+      cleanup();
+    });
+
+    process.on('SIGINT', () => {
+      log('SIGINT signal received: closing HTTP server');
+      cleanup();
+    });
+
   } catch (error) {
     log(`Server startup failed: ${error}`);
     throw error;
   }
 }
 
-// Try a range of ports if the default port is in use
+// Try an expanded range of ports if the default ports are in use
 (async () => {
-  const ports = [5000, 5001, 5002, 5003, 5004];
+  const ports = Array.from({ length: 10 }, (_, i) => 5000 + i);
 
   for (const port of ports) {
     try {

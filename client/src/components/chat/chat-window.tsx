@@ -10,28 +10,17 @@ import { useState, useRef, useEffect } from "react";
 
 export function ChatWindow({ rideId }: { rideId: number }) {
   const [message, setMessage] = useState("");
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const { messages, sendMessage, isLoading } = useChat(rideId);
   const { user } = useAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Handle keyboard visibility for iOS Safari
+  // Focus input field on mount
   useEffect(() => {
-    const handleResize = () => {
-      const isKeyboard = window.innerHeight < window.outerHeight * 0.75;
-      setIsKeyboardVisible(isKeyboard);
-
-      // Scroll to bottom when keyboard appears
-      if (isKeyboard) {
-        setTimeout(() => {
-          messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
   }, []);
 
   // Auto-scroll to bottom when new messages arrive
@@ -44,26 +33,26 @@ export function ChatWindow({ rideId }: { rideId: number }) {
     if (message.trim()) {
       sendMessage(message);
       setMessage("");
+      // Refocus input after sending
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
     }
   };
 
   return (
-    <div className={cn(
-      "flex flex-col relative",
-      "h-[calc(100vh-4rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))]",
-      "md:h-[calc(100vh-4rem)]",
-      "bg-background"
-    )}>
+    <div className="flex flex-col h-[calc(100dvh-4rem)]">
       <ScrollArea 
         ref={scrollAreaRef}
-        className={cn(
-          "flex-1",
-          "p-4",
-          "pb-[calc(4rem+env(safe-area-inset-bottom,0px))]", // Account for input height
-          isKeyboardVisible && "pb-24", // Extra padding when keyboard is visible
-          "overflow-y-auto",
-          "-webkit-overflow-scrolling: touch"
-        )}
+        className="flex-1 p-4 overflow-y-auto"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}
       >
         <div className="space-y-4 min-h-full">
           {messages.map((msg, i) => (
@@ -107,36 +96,30 @@ export function ChatWindow({ rideId }: { rideId: number }) {
       </ScrollArea>
 
       <form 
-        onSubmit={handleSubmit} 
-        className={cn(
-          isKeyboardVisible ? "fixed left-0 right-0 bottom-0" : "sticky bottom-0",
-          "p-4 border-t bg-background",
-          "pb-[calc(1rem+env(safe-area-inset-bottom,0px))]",
-          isKeyboardVisible && "pb-4",
-          "z-50" // Ensure it stays above everything
-        )}
+        onSubmit={handleSubmit}
+        className="sticky bottom-0 w-full bg-background border-t"
+        style={{ 
+          paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+          paddingTop: '1rem',
+          paddingLeft: '1rem',
+          paddingRight: '1rem'
+        }}
       >
         <div className="flex gap-2 max-w-2xl mx-auto">
           <Input
+            ref={inputRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="Type a message..."
             disabled={isLoading}
-            className={cn(
-              "flex-1",
-              "h-12",
-              "active:scale-[0.98] transition-transform",
-              "touch-none"
-            )}
+            className="flex-1 h-12"
+            autoComplete="off"
           />
           <Button 
             type="submit" 
             disabled={isLoading || !message.trim()}
-            className={cn(
-              "h-12 px-6",
-              "active:scale-[0.98] transition-transform",
-              "touch-none"
-            )}
+            className="h-12 px-6"
           >
             Send
           </Button>
