@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Clock, Users, Car, Trash2, Minus, UserX } from "lucide-react";
-import type { Ride } from "@shared/schema";
+import type { Ride, User } from "@shared/schema";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -21,8 +21,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+// Extended type for rides with full details
+type RideWithDetails = Omit<Ride, 'participants'> & {
+  host: Pick<User, 'username' | 'university'>;
+  participants: User[];
+};
+
 interface RideCardProps {
-  ride: Ride & { host: { username: string; university: string } };
+  ride: RideWithDetails;
   onSwipe?: () => void;
 }
 
@@ -32,7 +38,7 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
   const { toast } = useToast();
 
   const isHost = user?.id === ride.hostId;
-  const isParticipant = ride.participants.includes(user?.id ?? -1);
+  const isParticipant = ride.participants.some(p => p.id === user?.id);
   const canJoin = !isHost && !isParticipant && (!ride.femaleOnly || user?.gender === 'female');
 
   const handleDelete = async () => {
@@ -198,14 +204,16 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
                 <h4 className="text-sm font-medium mb-2">Participants</h4>
                 <div className="space-y-2">
                   {ride.participants
-                    .filter(id => id !== ride.hostId)
-                    .map((participantId) => (
-                      <div key={participantId} className="flex items-center justify-between">
+                    .filter(participant => participant.id !== ride.hostId)
+                    .map((participant) => (
+                      <div key={participant.id} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Avatar className="h-8 w-8">
-                            <AvatarFallback>U</AvatarFallback>
+                            <AvatarFallback>
+                              {participant.username.charAt(0).toUpperCase()}
+                            </AvatarFallback>
                           </Avatar>
-                          <span className="text-sm">User #{participantId}</span>
+                          <span className="text-sm">{participant.username}</span>
                         </div>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -221,14 +229,14 @@ export function RideCard({ ride, onSwipe }: RideCardProps) {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Remove Participant</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Are you sure you want to remove this participant from the ride?
+                                Are you sure you want to remove {participant.username} from the ride?
                                 This action cannot be undone.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
-                                onClick={() => handleKickMember(participantId)}
+                                onClick={() => handleKickMember(participant.id)}
                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               >
                                 Remove

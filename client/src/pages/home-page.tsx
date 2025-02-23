@@ -12,27 +12,32 @@ import {
 import { Input } from "@/components/ui/input";
 import { Plus, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { Ride } from "@shared/schema";
+import { Ride, User } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
 import { debounce } from "@/lib/utils";
 
+// Extended type for rides with full details
+type RideWithDetails = Omit<Ride, 'participants'> & {
+  host: Pick<User, 'username' | 'university'>;
+  participants: User[];
+};
+
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const { user } = useAuth();
-  const { data: rides = [] } = useQuery<
-    (Ride & { host: { username: string; university: string } })[]
-  >({
+
+  const { data: rides = [] } = useQuery<RideWithDetails[]>({
     queryKey: ["/api/rides"],
   });
 
   // Separate user's active ride and other rides
   const { activeRide, otherRides } = useMemo(() => {
     const active = rides.find(
-      (ride) => ride.participants.includes(user?.id ?? -1) && ride.isActive,
+      (ride) => ride.participants.some(p => p.id === user?.id) && ride.isActive
     );
     const others = rides.filter((ride) => ride.id !== active?.id);
     return { activeRide: active, otherRides: others };
