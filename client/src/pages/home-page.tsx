@@ -14,10 +14,9 @@ import { Plus, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Ride, User } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
-import { debounce } from "@/lib/utils";
 
 // Extended type for rides with full details
 type RideWithDetails = Omit<Ride, 'participants'> & {
@@ -43,11 +42,6 @@ export default function HomePage() {
     return { activeRide: active, otherRides: others };
   }, [rides, user?.id]);
 
-  // Debounced search handler
-  const debouncedSetSearchQuery = useCallback(
-    debounce((value: string) => setSearchQuery(value), 300),
-    [],
-  );
 
   // Filter rides based on search query
   const filteredRides = useMemo(() => {
@@ -122,20 +116,24 @@ export default function HomePage() {
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
         <Input
+          type="search"
           value={searchQuery}
-          onChange={(e) => debouncedSetSearchQuery(e.target.value)}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault(); 
+              setSearchQuery(e.target.value);
+            }
+          }}
           className="pl-9 pr-9 h-12 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
-          placeholder="Search by Ride Number or Location..."
+          placeholder="Search by Ride Number or Location (Press Enter to search)..."
         />
         {searchQuery && (
           <Button
             variant="ghost"
             size="icon"
             className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8"
-            onClick={() => {
-              setSearchQuery("");
-              debouncedSetSearchQuery("");
-            }}
+            onClick={() => setSearchQuery("")}
           >
             <X className="h-4 w-4" />
           </Button>
