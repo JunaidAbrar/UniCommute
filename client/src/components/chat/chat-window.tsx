@@ -7,13 +7,14 @@ import { useAuth } from "@/hooks/use-auth";
 import { useChat } from "@/hooks/use-chat";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { format } from "date-fns";
 
 interface ChatWindowProps {
-  rideId: string;
+  rideId: number;  // Changed from string to number
 }
 
 export function ChatWindow({ rideId }: ChatWindowProps) {
-  const { messages, sendMessage, isConnected } = useChat(rideId);
+  const { messages, sendMessage, isConnected, error } = useChat(rideId);
   const [newMessage, setNewMessage] = useState('');
   const { user } = useAuth();
 
@@ -26,21 +27,37 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
 
   return (
     <Card className="flex flex-col h-[400px] p-4">
+      {error && (
+        <div className="text-sm text-red-500 mb-2">
+          {error}
+        </div>
+      )}
       <ScrollArea className="flex-1 pr-4">
         <div className="flex flex-col gap-4">
           {messages.map((msg) => (
             <div
               key={msg.id}
-              className={`flex flex-col gap-1 ${
-                msg.userId === user?.id ? 'items-end' : 'items-start'
-              }`}
+              className={cn(
+                "flex flex-col gap-1",
+                msg.userId === user?.id ? "items-end" : "items-start"
+              )}
             >
-              <span className="text-xs font-medium text-muted-foreground">
-                {msg.userId === user?.id ? 'You' : msg.username}
-              </span>
-              <Card className={`px-3 py-2 max-w-[80%] ${
-                msg.userId === user?.id ? 'bg-primary text-primary-foreground' : ''
-              }`}>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-medium">
+                  {msg.userId === user?.id ? "You" : msg.username}
+                </span>
+                <span>
+                  {format(new Date(msg.timestamp), "h:mm a")}
+                </span>
+              </div>
+              <Card
+                className={cn(
+                  "px-3 py-2 max-w-[80%]",
+                  msg.userId === user?.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted"
+                )}
+              >
                 {msg.content}
               </Card>
             </div>

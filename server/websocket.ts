@@ -12,24 +12,37 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
   wss.on('connection', async (ws: WebSocketClient, req: IncomingMessage) => {
     try {
       // Extract session ID from cookie
-      const cookies = parseCookie(req.headers.cookie || '');
+      const cookieHeader = req.headers.cookie || '';
+      console.log('Received cookie header:', cookieHeader);
+
+      const cookies = parseCookie(cookieHeader);
       const sessionID = cookies['connect.sid'];
 
       if (!sessionID) {
-        console.log('WebSocket connection rejected: No session ID');
+        console.log('WebSocket connection rejected: No session ID found in cookies');
         ws.close();
         return;
       }
 
+      // Clean session ID (remove 's:' prefix if exists)
+      const cleanSessionID = sessionID.replace(/^s:/, '').split('.')[0];
+      console.log('Attempting to get session with ID:', cleanSessionID);
+
       // Get session data
-      const sessionData = await new Promise((resolve) => {
-        storage.sessionStore.get(sessionID, (err, session) => {
-          resolve(session);
+      const sessionData: any = await new Promise((resolve) => {
+        storage.sessionStore.get(cleanSessionID, (err, session) => {
+          if (err) {
+            console.error('Error getting session:', err);
+            resolve(null);
+          } else {
+            console.log('Retrieved session data:', session);
+            resolve(session);
+          }
         });
       });
 
       if (!sessionData || !sessionData.passport?.user) {
-        console.log('WebSocket connection rejected: Invalid session');
+        console.log('WebSocket connection rejected: Invalid session data', sessionData);
         ws.close();
         return;
       }
@@ -55,6 +68,9 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
           }
         } catch (error) {
           console.error('Error handling message:', error);
+          if (error instanceof Error) {
+            console.error('Error details:', error.message);
+          }
         }
       });
 
@@ -65,6 +81,9 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
 
     } catch (error) {
       console.error('Error in WebSocket connection:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+      }
       ws.close();
     }
   });
@@ -72,28 +91,45 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
 
 async function handleJoin(ws: WebSocketClient, data: any, userId: number) {
   const { rideId } = data;
-  ws.userId = userId;
-  ws.rideId = rideId;
 
-  // Verify user is a participant in the ride
-  const ride = await storage.getRide(rideId);
-  if (!ride || !ride.participants.includes(userId)) {
-    console.log(`Join rejected: User ${userId} not in ride ${rideId}`);
+  if (!rideId) {
+    console.log('Join rejected: No rideId provided');
     ws.close();
     return;
   }
 
-  let room = rooms.get(rideId.toString());
+  const numericRideId = parseInt(rideId);
+  if (isNaN(numericRideId)) {
+    console.log('Join rejected: Invalid rideId format');
+    ws.close();
+    return;
+  }
+
+  ws.userId = userId;
+  ws.rideId = numericRideId;
+
+  // Verify user is a participant in the ride
+  const ride = await storage.getRide(numericRideId);
+  if (!ride || !ride.participants.includes(userId)) {
+    console.log(`Join rejected: User ${userId} not in ride ${numericRideId}`);
+    ws.close();
+    return;
+  }
+
+  let room = rooms.get(numericRideId.toString());
   if (!room) {
-    room = { rideId: rideId, clients: new Set() };
-    rooms.set(rideId.toString(), room);
+    room = { rideId: numericRideId, clients: new Set() };
+    rooms.set(numericRideId.toString(), room);
   }
   room.clients.add(ws);
-  console.log(`User ${userId} joined ride ${rideId}`);
+  console.log(`User ${userId} joined ride ${numericRideId}`);
 }
 
 async function handleMessage(ws: WebSocketClient, data: any, userId: number) {
-  if (!ws.rideId) return;
+  if (!ws.rideId) {
+    console.log('Message rejected: No rideId associated with connection');
+    return;
+  }
 
   const user = await storage.getUser(userId);
   if (!user) {
@@ -110,23 +146,31 @@ async function handleMessage(ws: WebSocketClient, data: any, userId: number) {
     timestamp: new Date()
   };
 
-  // Store message in database
-  await storage.createMessage(userId, {
-    rideId: ws.rideId,
-    content: data.content,
-    type: 'text',
-    timestamp: message.timestamp.toISOString()
-  });
+  console.log('Creating message:', message);
 
-  // Broadcast to all clients in the room
-  const room = rooms.get(ws.rideId.toString());
-  if (room) {
-    const messageStr = JSON.stringify({ type: 'message', message });
-    room.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(messageStr);
-      }
+  try {
+    // Store message in database
+    await storage.createMessage(userId, {
+      rideId: ws.rideId,
+      content: data.content,
+      type: 'text'
     });
+
+    // Broadcast to all clients in the room
+    const room = rooms.get(ws.rideId.toString());
+    if (room) {
+      const messageStr = JSON.stringify({ type: 'message', message });
+      room.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(messageStr);
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error handling message:', error);
+    if (error instanceof Error) {
+      console.error('Error details:', error.message);
+    }
   }
 }
 
@@ -141,24 +185,4 @@ function handleLeave(ws: WebSocketClient) {
       console.log(`User left ride ${ws.rideId}`);
     }
   }
-}
-
-//  This is a placeholder.  A real implementation would be needed.
-export interface WebSocketClient extends WebSocket {
-  userId?: number;
-  rideId?: number;
-}
-
-export interface ChatMessage {
-    id: string;
-    rideId: number;
-    userId: number;
-    username: string;
-    content: string;
-    timestamp: Date;
-}
-
-export interface ChatRoom {
-    rideId: number;
-    clients: Set<WebSocketClient>;
 }

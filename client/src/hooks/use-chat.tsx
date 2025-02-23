@@ -19,36 +19,46 @@ export function useChat(rideId: number) {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
 
   const connect = useCallback(() => {
-    if (!user) return;
+    if (!user) {
+      console.log('No user, skipping connection');
+      return;
+    }
 
     try {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${protocol}//${window.location.host}/ws`;
+      console.log('Connecting to WebSocket:', wsUrl);
+
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('WebSocket connected, joining room:', rideId);
         setIsConnected(true);
         setError(null);
 
         // Join the chat room
         ws.send(JSON.stringify({
           type: 'join',
-          rideId
+          rideId: rideId
         }));
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('Received WebSocket message:', data);
+
           if (data.type === 'message') {
             setMessages(prev => {
               // Avoid duplicate messages
               if (prev.some(m => m.id === data.message.id)) {
                 return prev;
               }
-              return [...prev, data.message];
+              return [...prev, {
+                ...data.message,
+                timestamp: new Date(data.message.timestamp)
+              }];
             });
           }
         } catch (err) {
@@ -57,9 +67,12 @@ export function useChat(rideId: number) {
       };
 
       ws.onclose = () => {
-        console.log('WebSocket disconnected');
+        console.log('WebSocket disconnected, scheduling reconnect');
         setIsConnected(false);
         // Attempt to reconnect after 5 seconds
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
         reconnectTimeoutRef.current = setTimeout(connect, 5000);
       };
 
@@ -79,7 +92,7 @@ export function useChat(rideId: number) {
     connect();
 
     return () => {
-      // Cleanup on unmount
+      console.log('Cleaning up WebSocket connection');
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: 'leave' }));
         wsRef.current.close();
@@ -92,11 +105,21 @@ export function useChat(rideId: number) {
 
   // Load existing messages
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      console.log('No user, skipping message load');
+      return;
+    }
 
+    console.log('Loading existing messages for ride:', rideId);
     fetch(`/api/rides/${rideId}/messages`)
       .then(res => res.json())
-      .then(data => setMessages(data))
+      .then(data => {
+        console.log('Loaded messages:', data);
+        setMessages(data.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        })));
+      })
       .catch(err => {
         console.error('Error loading messages:', err);
         setError('Failed to load messages');
@@ -105,12 +128,14 @@ export function useChat(rideId: number) {
 
   const sendMessage = useCallback((content: string) => {
     if (!wsRef.current || !user || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error('Cannot send message: not connected');
       setError('Not connected to chat server');
       return;
     }
 
     if (!content.trim()) return;
 
+    console.log('Sending message:', content);
     wsRef.current.send(JSON.stringify({
       type: 'message',
       content: content.trim()

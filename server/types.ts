@@ -25,21 +25,21 @@ export interface IStorage {
   getMessagesByRide(rideId: number): Promise<Message[]>;
 }
 
-export interface ChatMessage {
-  id: string;
-  rideId: string;
-  userId: string;
-  username: string;
-  content: string;
-  timestamp: Date;
-}
-
 export interface WebSocketClient extends WebSocket {
-  userId?: string;
-  rideId?: string;
+  userId?: number;
+  rideId?: number;
 }
 
 export interface ChatRoom {
-  rideId: string;
+  rideId: number;
   clients: Set<WebSocketClient>;
+}
+
+export interface ChatMessage {
+  id: string;
+  rideId: number;
+  userId: number;
+  username: string;
+  content: string;
+  timestamp: Date;
 }
