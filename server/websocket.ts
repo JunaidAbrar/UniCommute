@@ -157,16 +157,21 @@ async function handleMessage(ws: WebSocketClient, data: any, userId: number) {
       throw new Error('User not found');
     }
 
+    // Ensure we're using the correct username field from the user object
     const message: ChatMessage = {
       id: crypto.randomUUID(),
       rideId: ws.rideId,
       userId: userId,
-      username: user.username,
+      username: user.username || 'Anonymous', // Fallback to Anonymous if username is not available
       content: data.content,
       timestamp: new Date()
     };
 
-    console.log('Broadcasting message:', message);
+    console.log('Broadcasting message with user details:', {
+      userId: message.userId,
+      username: message.username,
+      content: message.content
+    });
 
     // Store in database first
     await storage.createMessage(userId, {

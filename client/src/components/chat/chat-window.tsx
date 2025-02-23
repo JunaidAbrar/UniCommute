@@ -59,8 +59,15 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
                 )}
               >
                 <div className="flex items-center gap-2 text-sm">
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback>
+                      {(msg.userId === user?.id ? "You" : msg.username || "User")
+                        .charAt(0)
+                        .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
                   <span className="font-semibold text-foreground">
-                    {msg.userId === user?.id ? "You" : msg.username}
+                    {msg.userId === user?.id ? "You" : msg.username || "User"}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {format(new Date(msg.timestamp), "h:mm a")}
