@@ -36,19 +36,9 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
     }
   };
 
-  // Function to get initials from username
-  const getInitials = (username: string) => {
-    return username
-      .split(' ')
-      .map(part => part[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   return (
-    <div className="flex flex-col h-screen pb-16">
-      <Card className="flex-1 flex flex-col p-4 min-h-0">
+    <div className="flex flex-col h-[calc(100vh-8rem)]">
+      <Card className="flex-1 flex flex-col p-4 min-h-0 mb-16">
         {error && (
           <div className="text-sm text-red-500 mb-2">
             {error}
@@ -57,7 +47,6 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
         <ScrollArea 
           ref={scrollRef}
           className="flex-1 pr-4"
-          style={{ height: 'calc(100vh - 240px)' }}
         >
           <div className="flex flex-col gap-4">
             {messages.map((msg) => (
@@ -68,18 +57,13 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
                   msg.userId === user?.id ? "flex-row-reverse" : "flex-row"
                 )}
               >
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>
-                    {getInitials(msg.username || 'Unknown')}
-                  </AvatarFallback>
-                </Avatar>
                 <div className={cn(
                   "flex flex-col gap-1",
                   msg.userId === user?.id ? "items-end" : "items-start"
                 )}>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="font-medium">
-                      {msg.userId === user?.id ? "You" : msg.username || 'Unknown'}
+                      {msg.userId === user?.id ? "You" : msg.username}
                     </span>
                     <span>
                       {format(new Date(msg.timestamp), "h:mm a")}
@@ -101,21 +85,23 @@ export function ChatWindow({ rideId }: ChatWindowProps) {
           </div>
         </ScrollArea>
 
-        <div className="flex gap-2 mt-4">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Type a message..."
-            disabled={!isConnected}
-            className="flex-1"
-          />
-          <Button 
-            onClick={handleSend} 
-            disabled={!isConnected}
-          >
-            Send
-          </Button>
+        <div className="fixed bottom-20 left-0 right-0 bg-background p-4 border-t">
+          <div className="flex gap-2 max-w-[1200px] mx-auto">
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+              placeholder="Type a message..."
+              disabled={!isConnected}
+              className="flex-1"
+            />
+            <Button 
+              onClick={handleSend} 
+              disabled={!isConnected}
+            >
+              Send
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

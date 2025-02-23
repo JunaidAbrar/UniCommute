@@ -15,66 +15,77 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
     try {
       // Extract session ID from cookie
       const cookieHeader = req.headers.cookie || '';
-      log('WebSocket connection attempt with cookie:', cookieHeader);
+      log(`Incoming WebSocket connection with cookies: ${cookieHeader}`);
 
       const cookies = parseCookie(cookieHeader);
       const sessionID = cookies['connect.sid'];
 
       if (!sessionID) {
-        log('WebSocket connection rejected: No session ID found');
+        log('Connection rejected: No session ID found');
         ws.close(1008, 'No session ID found');
         return;
       }
 
       // Clean session ID (remove 's:' prefix and signature)
       const cleanSessionID = decodeURIComponent(sessionID.replace(/^s:/, '').split('.')[0]);
-      log('Clean session ID:', cleanSessionID);
+      log(`Processing session ID: ${cleanSessionID}`);
 
       // Get session data
-      const sessionData: any = await new Promise((resolve, reject) => {
+      const sessionData = await new Promise((resolve, reject) => {
         storage.sessionStore.get(cleanSessionID, (err, session) => {
           if (err) {
-            log('Session store error:', err);
+            log(`Session store error: ${err.message}`);
             reject(err);
-          } else {
-            log('Session data retrieved:', session);
-            resolve(session);
+            return;
           }
+          log(`Retrieved session data: ${JSON.stringify(session)}`);
+          resolve(session);
         });
       });
 
       if (!sessionData || !sessionData.passport?.user) {
-        log('Invalid session data:', sessionData);
+        log('Invalid session data or missing user');
         ws.close(1008, 'Invalid session');
         return;
       }
 
       const userId = sessionData.passport.user;
-      log(`WebSocket client authenticated. UserID: ${userId}`);
+
+      // Get user data
+      const user = await storage.getUser(userId);
+      if (!user) {
+        log(`User not found for ID: ${userId}`);
+        ws.close(1008, 'User not found');
+        return;
+      }
+
+      log(`WebSocket client authenticated. UserID: ${userId}, Username: ${user.username}`);
 
       // Initialize client info
       ws.userId = userId;
+      // Store username for later use
+      ws.username = user.username;
 
       ws.on('message', async (message: string) => {
         try {
           const data = JSON.parse(message);
-          log('Received message from user', userId, ':', data);
+          log(`Message from user ${userId} (${user.username}): ${JSON.stringify(data)}`);
 
           switch (data.type) {
             case 'join':
-              await handleJoin(ws, data, userId);
+              await handleJoin(ws, data);
               break;
             case 'message':
-              await handleMessage(ws, data, userId);
+              await handleMessage(ws, data);
               break;
             case 'leave':
               handleLeave(ws);
               break;
             default:
-              log('Unknown message type:', data.type);
+              log(`Unknown message type: ${data.type}`);
           }
         } catch (error) {
-          log('Error processing message:', error);
+          log(`Error processing message: ${error}`);
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ 
               type: 'error', 
@@ -85,17 +96,17 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
       });
 
       ws.on('close', () => {
-        log(`Client disconnected. UserID: ${userId}`);
+        log(`Client disconnected. UserID: ${userId}, Username: ${user.username}`);
         handleLeave(ws);
       });
 
       ws.on('error', (error) => {
-        log('WebSocket error:', error);
+        log(`WebSocket error for user ${userId}: ${error}`);
         handleLeave(ws);
       });
 
     } catch (error) {
-      log('WebSocket connection error:', error);
+      log(`WebSocket connection error: ${error}`);
       if (ws.readyState === WebSocket.OPEN) {
         ws.close(1011, 'Internal server error');
       }
@@ -103,11 +114,11 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
   });
 }
 
-async function handleJoin(ws: WebSocketClient, data: any, userId: number) {
+async function handleJoin(ws: WebSocketClient, data: any) {
   try {
     const { rideId } = data;
-    if (!rideId) {
-      throw new Error('No rideId provided');
+    if (!rideId || !ws.userId) {
+      throw new Error('Invalid join request');
     }
 
     const numericRideId = parseInt(rideId);
@@ -117,8 +128,8 @@ async function handleJoin(ws: WebSocketClient, data: any, userId: number) {
 
     // Verify user is a participant in the ride
     const ride = await storage.getRide(numericRideId);
-    if (!ride || !ride.participants.includes(userId)) {
-      throw new Error(`User ${userId} not authorized for ride ${numericRideId}`);
+    if (!ride || !ride.participants.includes(ws.userId)) {
+      throw new Error(`User ${ws.userId} not authorized for ride ${numericRideId}`);
     }
 
     ws.rideId = numericRideId;
@@ -130,14 +141,14 @@ async function handleJoin(ws: WebSocketClient, data: any, userId: number) {
     }
     room.clients.add(ws);
 
-    log(`User ${userId} joined ride ${numericRideId}`);
+    log(`User ${ws.userId} (${ws.username}) joined ride ${numericRideId}`);
 
     // Send confirmation
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'joined', rideId: numericRideId }));
     }
   } catch (error) {
-    log('Error in handleJoin:', error);
+    log(`Error in handleJoin: ${error}`);
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ 
         type: 'error', 
@@ -147,30 +158,25 @@ async function handleJoin(ws: WebSocketClient, data: any, userId: number) {
   }
 }
 
-async function handleMessage(ws: WebSocketClient, data: any, userId: number) {
+async function handleMessage(ws: WebSocketClient, data: any) {
   try {
-    if (!ws.rideId) {
-      throw new Error('No active ride');
-    }
-
-    const user = await storage.getUser(userId);
-    if (!user) {
-      throw new Error('User not found');
+    if (!ws.rideId || !ws.userId || !ws.username) {
+      throw new Error('Invalid message: Missing required client data');
     }
 
     const message: ChatMessage = {
       id: crypto.randomUUID(),
       rideId: ws.rideId,
-      userId: userId,
-      username: user.username,
+      userId: ws.userId,
+      username: ws.username,
       content: data.content,
       timestamp: new Date()
     };
 
-    log('Broadcasting message:', message);
+    log(`Broadcasting message from ${ws.username} in ride ${ws.rideId}`);
 
     // Store in database first
-    await storage.createMessage(userId, {
+    await storage.createMessage(ws.userId, {
       rideId: ws.rideId,
       content: data.content,
       type: 'text'
@@ -194,7 +200,7 @@ async function handleMessage(ws: WebSocketClient, data: any, userId: number) {
       });
     }
   } catch (error) {
-    log('Error in handleMessage:', error);
+    log(`Error in handleMessage: ${error}`);
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ 
         type: 'error', 
@@ -212,7 +218,7 @@ function handleLeave(ws: WebSocketClient) {
       if (room.clients.size === 0) {
         rooms.delete(ws.rideId.toString());
       }
-      log(`User left ride ${ws.rideId}`);
+      log(`User ${ws.userId} (${ws.username}) left ride ${ws.rideId}`);
     }
   }
 }
