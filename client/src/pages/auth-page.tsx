@@ -42,11 +42,21 @@ const verifyEmailSchema = z.object({
   otp: z.string().length(6, "Verification code must be 6 digits")
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Please enter a valid email address")
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1, "Reset token is required"),
+  password: z.string().min(8, "Password must be at least 8 characters")
+});
+
 export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("login");
   const [verifyingOTP, setVerifyingOTP] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [verificationMode, setVerificationMode] = useState<'email'>('email');
 
   const loginForm = useForm({
@@ -73,6 +83,21 @@ export default function AuthPage() {
     defaultValues: {
       email: "",
       otp: "",
+    },
+  });
+
+  const forgotPasswordForm = useForm({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: {
+      email: "",
+    },
+  });
+
+  const resetPasswordForm = useForm({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+      token: "",
+      password: "",
     },
   });
 
@@ -121,6 +146,47 @@ export default function AuthPage() {
     }
   };
 
+  const onForgotPassword = async (data: z.infer<typeof forgotPasswordSchema>) => {
+    try {
+      setIsResettingPassword(true);
+      const response = await apiRequest("POST", "/api/forgot-password", data);
+      const result = await response.json();
+      toast({
+        title: "Reset link sent",
+        description: result.message,
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to send reset link",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
+  const onResetPassword = async (data: z.infer<typeof resetPasswordSchema>) => {
+    try {
+      setIsResettingPassword(true);
+      const response = await apiRequest("POST", "/api/reset-password", data);
+      const result = await response.json();
+      toast({
+        title: "Password reset successful",
+        description: result.message,
+      });
+      setActiveTab("login");
+    } catch (error) {
+      toast({
+        title: "Failed to reset password",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4">
       <div className="w-full max-w-4xl grid md:grid-cols-2 gap-6">
@@ -133,10 +199,11 @@ export default function AuthPage() {
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="register">Register</TabsTrigger>
                 <TabsTrigger value="verify">Verify</TabsTrigger>
+                <TabsTrigger value="reset">Reset</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
@@ -179,6 +246,17 @@ export default function AuthPage() {
                       )}
                     />
 
+                    <div className="flex items-center justify-between">
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="px-0"
+                        onClick={() => setActiveTab("reset")}
+                      >
+                        Forgot password?
+                      </Button>
+                    </div>
+
                     <Button
                       type="submit"
                       className="w-full mt-6"
@@ -188,6 +266,59 @@ export default function AuthPage() {
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
                       Login
+                    </Button>
+                  </form>
+                </Form>
+              </TabsContent>
+
+              <TabsContent value="reset">
+                <Form {...forgotPasswordForm}>
+                  <form
+                    onSubmit={forgotPasswordForm.handleSubmit(onForgotPassword)}
+                    className="space-y-4 mt-4"
+                  >
+                    <Alert>
+                      <AlertDescription>
+                        Enter your email address and we'll send you a link to reset your password.
+                      </AlertDescription>
+                    </Alert>
+
+                    <FormField
+                      control={forgotPasswordForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="email"
+                              placeholder="Enter your email"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={isResettingPassword}
+                    >
+                      {isResettingPassword && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Send Reset Link
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="w-full"
+                      onClick={() => setActiveTab("login")}
+                    >
+                      Back to Login
                     </Button>
                   </form>
                 </Form>
