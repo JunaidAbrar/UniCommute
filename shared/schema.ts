@@ -108,7 +108,7 @@ export const insertUserSchema = createInsertSchema(users)
   .extend({
     email: z.string().email().refine(
       (email) => {
-        const validDomains = ['g.bracu.ac.bd', 'bracu.ac.bd'];
+        const validDomains = ['g.bracu.ac.bd', 'bracu.ac.bd']; // Add or modify domains here
         const domain = email.split('@')[1];
         return validDomains.includes(domain);
       },
