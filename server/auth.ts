@@ -6,7 +6,6 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser, insertUserSchema } from "@shared/schema";
-import { generateToken, sendVerificationEmail, sendPasswordResetEmail } from "./email";
 import { generateOTP, sendVerificationOTP, sendPasswordResetOTP } from "./email";
 
 declare global {
@@ -189,10 +188,17 @@ export function setupAuth(app: Express) {
       const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
       await storage.setVerificationOTP(user.id, otp, otpExpires);
-      await sendPasswordResetOTP(user, otp);
-
-      res.status(200).json({ message: "Password reset code sent to your email" });
+      try {
+        await sendPasswordResetOTP(user, otp);
+        res.status(200).json({ message: "Password reset code sent to your email" });
+      } catch (emailError) {
+        console.error('Error sending password reset email:', emailError);
+        // Cleanup the OTP if email sending fails
+        await storage.setVerificationOTP(user.id, null, null);
+        res.status(500).json({ message: "Failed to send reset code. Please try again." });
+      }
     } catch (error) {
+      console.error('Error in forgot password:', error);
       res.status(500).json({ message: "Error processing password reset request" });
     }
   });
