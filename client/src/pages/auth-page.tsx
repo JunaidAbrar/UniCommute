@@ -42,6 +42,10 @@ const verifyEmailSchema = z.object({
   otp: z.string().length(6, "Verification code must be 6 digits")
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Please enter a valid email address")
+});
+
 const resetPasswordSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   otp: z.string().length(6, "Reset code must be 6 digits"),
@@ -55,6 +59,7 @@ export default function AuthPage() {
   const [verifyingOTP, setVerifyingOTP] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [verificationMode, setVerificationMode] = useState<'email' | 'password'>('email');
+  const [resetPasswordStep, setResetPasswordStep] = useState<'request' | 'reset'>('request');
 
   const loginForm = useForm({
     resolver: zodResolver(loginSchema),
@@ -80,6 +85,13 @@ export default function AuthPage() {
     defaultValues: {
       email: "",
       otp: "",
+    },
+  });
+
+  const forgotPasswordForm = useForm({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: {
+      email: "",
     },
   });
 
@@ -137,19 +149,20 @@ export default function AuthPage() {
     }
   };
 
-  const onForgotPassword = async (data: z.infer<typeof verifyEmailSchema>) => {
+  const onRequestResetCode = async (data: z.infer<typeof forgotPasswordSchema>) => {
     try {
       setIsResettingPassword(true);
-      const response = await apiRequest("POST", "/api/forgot-password", { email: data.email });
+      const response = await apiRequest("POST", "/api/forgot-password", data);
       const result = await response.json();
+
+      // Set up the reset password form with the email
       resetPasswordForm.setValue('email', data.email);
+      setResetPasswordStep('reset');
+
       toast({
         title: "Reset code sent",
         description: result.message,
       });
-      setVerificationMode('password');
-      resetPasswordForm.setValue('otp', ''); // Clear OTP field after sending reset code.
-      //setActiveTab("verify");  // Moved to conditional rendering in the JSX below
     } catch (error) {
       toast({
         title: "Error",
@@ -385,6 +398,7 @@ export default function AuthPage() {
 
               <TabsContent value="verify">
                 {verificationMode === 'email' ? (
+                  // Email verification form
                   <Form {...verifyEmailForm}>
                     <form
                       onSubmit={verifyEmailForm.handleSubmit(onVerifyEmail)}
@@ -445,15 +459,14 @@ export default function AuthPage() {
                     </form>
                   </Form>
                 ) : (
-                  <Form {...resetPasswordForm}>
-                    <form
-                      onSubmit={!resetPasswordForm.getValues("otp") ? 
-                        resetPasswordForm.handleSubmit(onForgotPassword) :
-                        resetPasswordForm.handleSubmit(onResetPassword)}
-                      className="space-y-4 mt-4"
-                    >
-                      {!resetPasswordForm.getValues("otp") ? (
-                        <>
+                  // Password reset form
+                  <div className="space-y-4 mt-4">
+                    {resetPasswordStep === 'request' ? (
+                      <Form {...forgotPasswordForm}>
+                        <form
+                          onSubmit={forgotPasswordForm.handleSubmit(onRequestResetCode)}
+                          className="space-y-4"
+                        >
                           <Alert>
                             <AlertDescription>
                               Enter your email to receive a password reset code.
@@ -461,7 +474,7 @@ export default function AuthPage() {
                           </Alert>
 
                           <FormField
-                            control={resetPasswordForm.control}
+                            control={forgotPasswordForm.control}
                             name="email"
                             render={({ field }) => (
                               <FormItem>
@@ -488,9 +501,14 @@ export default function AuthPage() {
                             )}
                             Send Reset Code
                           </Button>
-                        </>
-                      ) : (
-                        <>
+                        </form>
+                      </Form>
+                    ) : (
+                      <Form {...resetPasswordForm}>
+                        <form
+                          onSubmit={resetPasswordForm.handleSubmit(onResetPassword)}
+                          className="space-y-4"
+                        >
                           <Alert>
                             <AlertDescription>
                               Enter the reset code sent to your email and choose a new password.
@@ -543,10 +561,19 @@ export default function AuthPage() {
                             )}
                             Reset Password
                           </Button>
-                        </>
-                      )}
-                    </form>
-                  </Form>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="w-full"
+                            onClick={() => setResetPasswordStep('request')}
+                          >
+                            Request New Code
+                          </Button>
+                        </form>
+                      </Form>
+                    )}
+                  </div>
                 )}
               </TabsContent>
             </Tabs>
