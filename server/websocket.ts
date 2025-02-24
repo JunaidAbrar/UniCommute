@@ -3,30 +3,13 @@ import { storage } from './storage';
 import { ChatMessage, WebSocketClient, ChatRoom } from './types';
 import * as crypto from 'crypto';
 import { parse as parseCookie } from 'cookie';
-import { IncomingMessage, Server } from 'http';
+import { IncomingMessage } from 'http';
 import type { Express } from 'express';
 import { WebSocket } from 'ws';
 
 const rooms = new Map<string, ChatRoom>();
 
-export function setupWebSocket(app: Express) {
-  const wss = new WebSocketServer({ noServer: true });
-
-  // Get the HTTP server instance from the Express app
-  const server = app.get('server') as Server;
-  if (!server) {
-    console.error('HTTP server not found in Express app');
-    return;
-  }
-
-  // Handle upgrade event on the HTTP server
-  server.on('upgrade', (request: IncomingMessage, socket: any, head: any) => {
-    console.log('Upgrade request received');
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit('connection', ws, request);
-    });
-  });
-
+export function setupWebSocket(wss: WebSocketServer, app: Express) {
   wss.on('connection', async (ws: WebSocketClient, req: IncomingMessage) => {
     try {
       // Extract session ID from cookie
@@ -95,9 +78,9 @@ export function setupWebSocket(app: Express) {
         } catch (error) {
           console.error('Error processing message:', error);
           if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              type: 'error',
-              message: 'Failed to process message'
+            ws.send(JSON.stringify({ 
+              type: 'error', 
+              message: 'Failed to process message' 
             }));
           }
         }
@@ -169,17 +152,17 @@ async function handleJoin(ws: WebSocketClient, data: any, userId: number) {
       // Get existing messages for this ride
       const messages = await storage.getMessagesByRide(numericRideId);
 
-      ws.send(JSON.stringify({
-        type: 'joined',
+      ws.send(JSON.stringify({ 
+        type: 'joined', 
         rideId: numericRideId,
-        messages: messages
+        messages: messages 
       }));
     }
   } catch (error) {
     console.error('Error in handleJoin:', error);
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'error',
+      ws.send(JSON.stringify({ 
+        type: 'error', 
         message: error instanceof Error ? error.message : 'Failed to join ride'
       }));
     }
@@ -234,8 +217,8 @@ async function handleMessage(ws: WebSocketClient, data: any, userId: number) {
   } catch (error) {
     console.error('Error in handleMessage:', error);
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'error',
+      ws.send(JSON.stringify({ 
+        type: 'error', 
         message: error instanceof Error ? error.message : 'Failed to send message'
       }));
     }
