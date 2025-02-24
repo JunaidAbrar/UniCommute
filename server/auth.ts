@@ -6,7 +6,6 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser, insertUserSchema } from "@shared/schema";
-import { generateToken, sendVerificationEmail, sendPasswordResetEmail } from "./email";
 
 declare global {
   namespace Express {
@@ -77,6 +76,7 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        // Check for too many login attempts
         if (!checkLoginAttempts(username)) {
           return done(null, false, { message: "Too many login attempts. Please try again later." });
         }
@@ -85,10 +85,6 @@ export function setupAuth(app: Express) {
         if (!user || !(await comparePasswords(password, user.password))) {
           recordLoginAttempt(username);
           return done(null, false, { message: "Invalid username or password" });
-        }
-
-        if (!user.isVerified) {
-          return done(null, false, { message: "Please verify your email before logging in" });
         }
 
         // Reset login attempts on successful login
@@ -129,90 +125,17 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Username already exists" });
       }
 
-      // Generate verification token
-      const verificationToken = generateToken();
-      const verificationExpiry = new Date();
-      verificationExpiry.setHours(verificationExpiry.getHours() + 24);
-
       const user = await storage.createUser({
         ...parseResult.data,
         password: await hashPassword(parseResult.data.password),
-        verificationToken,
-        verificationTokenExpiry: verificationExpiry.toISOString(),
-        isVerified: false
       });
 
-      // Send verification email
-      await sendVerificationEmail(user.email, verificationToken);
-
-      res.status(201).json({ 
-        message: "Registration successful. Please check your email to verify your account.",
-        user: { ...user, password: undefined }
+      req.login(user, (err) => {
+        if (err) return next(err);
+        res.status(201).json(user);
       });
     } catch (error) {
       next(error);
-    }
-  });
-
-  app.post("/api/verify-email", async (req, res) => {
-    const { token } = req.body;
-    if (!token) {
-      return res.status(400).json({ message: "Verification token is required" });
-    }
-
-    try {
-      const user = await storage.verifyEmail(token);
-      if (!user) {
-        return res.status(400).json({ message: "Invalid or expired verification token" });
-      }
-
-      res.json({ message: "Email verified successfully" });
-    } catch (error) {
-      res.status(500).json({ message: "Error verifying email" });
-    }
-  });
-
-  app.post("/api/forgot-password", async (req, res) => {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
-    }
-
-    try {
-      const user = await storage.getUserByEmail(email);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      const resetToken = generateToken();
-      const resetExpiry = new Date();
-      resetExpiry.setHours(resetExpiry.getHours() + 1);
-
-      await storage.setResetToken(user.id, resetToken, resetExpiry.toISOString());
-      await sendPasswordResetEmail(email, resetToken);
-
-      res.json({ message: "Password reset instructions sent to your email" });
-    } catch (error) {
-      res.status(500).json({ message: "Error processing password reset request" });
-    }
-  });
-
-  app.post("/api/reset-password", async (req, res) => {
-    const { token, newPassword } = req.body;
-    if (!token || !newPassword) {
-      return res.status(400).json({ message: "Token and new password are required" });
-    }
-
-    try {
-      const hashedPassword = await hashPassword(newPassword);
-      const user = await storage.resetPassword(token, hashedPassword);
-      if (!user) {
-        return res.status(400).json({ message: "Invalid or expired reset token" });
-      }
-
-      res.json({ message: "Password reset successful" });
-    } catch (error) {
-      res.status(500).json({ message: "Error resetting password" });
     }
   });
 
