@@ -119,9 +119,9 @@ export function setupAuth(app: Express) {
     try {
       const parseResult = insertUserSchema.safeParse(req.body);
       if (!parseResult.success) {
-        return res.status(400).json({
+        return res.status(400).json({ 
           message: "Invalid registration data",
-          errors: parseResult.error.errors
+          errors: parseResult.error.errors 
         });
       }
 
@@ -142,7 +142,7 @@ export function setupAuth(app: Express) {
       await storage.setVerificationOTP(user.id, otp, otpExpires);
       await sendVerificationOTP(user, otp);
 
-      res.status(201).json({
+      res.status(201).json({ 
         message: "Registration successful. Please check your email for verification code.",
         email: user.email
       });
@@ -171,47 +171,25 @@ export function setupAuth(app: Express) {
 
   app.post("/api/forgot-password", async (req, res) => {
     const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
 
     try {
-      if (!email) {
-        return res.status(400).json({
-          message: "Email is required",
-          error: "MISSING_EMAIL"
-        });
-      }
-
       const user = await storage.getUserByEmail(email);
       if (!user) {
-        // Use same message to prevent email enumeration
-        return res.status(200).json({
-          message: "If an account exists with this email, you will receive a password reset code."
-        });
+        return res.status(404).json({ message: "User not found" });
       }
 
-      try {
-        const otp = await generateOTP();
-        const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-        await storage.setResetPasswordOTP(user.id, otp, otpExpires);
-        await sendPasswordResetOTP(user, otp);
+      const otp = await generateOTP();
+      const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-        res.status(200).json({
-          message: "If an account exists with this email, you will receive a password reset code."
-        });
-      } catch (error: any) {
-        if (error.message === "Too many reset attempts. Please try again later.") {
-          return res.status(429).json({
-            message: error.message,
-            error: "RATE_LIMITED"
-          });
-        }
-        throw error;
-      }
+      await storage.setResetPasswordOTP(user.id, otp, otpExpires);
+      await sendPasswordResetOTP(user, otp);
+
+      res.status(200).json({ message: "Password reset code sent to your email" });
     } catch (error) {
-      console.error('Forgot password error:', error);
-      res.status(500).json({
-        message: "An error occurred while processing your request. Please try again.",
-        error: "SERVER_ERROR"
-      });
+      res.status(500).json({ message: "Error processing password reset request" });
     }
   });
 
@@ -235,49 +213,22 @@ export function setupAuth(app: Express) {
 
   app.post("/api/reset-password", async (req, res) => {
     const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: "Email, reset code, and new password are required" });
+    }
 
     try {
-      // Validate required fields
-      if (!email || !otp || !newPassword) {
-        return res.status(400).json({
-          message: "Email, reset code, and new password are required",
-          error: "MISSING_FIELDS"
-        });
-      }
-
-      // Validate password length
-      if (newPassword.length < 6) {
-        return res.status(400).json({
-          message: "Password must be at least 6 characters long",
-          error: "INVALID_PASSWORD"
-        });
-      }
-
-      // Verify OTP
       const user = await storage.verifyResetPasswordOTP(email, otp);
       if (!user) {
-        return res.status(400).json({
-          message: "Invalid or expired reset code. Please request a new code.",
-          error: "INVALID_OTP"
-        });
+        return res.status(400).json({ message: "Invalid or expired reset code" });
       }
 
-      // Hash and update password
       const hashedPassword = await hashPassword(newPassword);
       await storage.updatePassword(user.id, hashedPassword);
 
-      // Clear any existing sessions for this user
-      await storage.clearUserSessions(user.id);
-
-      res.status(200).json({
-        message: "Password updated successfully. Please log in with your new password."
-      });
+      res.status(200).json({ message: "Password updated successfully" });
     } catch (error) {
-      console.error('Password reset error:', error);
-      res.status(500).json({
-        message: "An error occurred while resetting your password. Please try again.",
-        error: "SERVER_ERROR"
-      });
+      res.status(500).json({ message: "Error resetting password" });
     }
   });
 

@@ -15,14 +15,7 @@ export const users = pgTable("users", {
   verificationOTPExpires: timestamp("verification_otp_expires", { withTimezone: true, mode: 'string' }),
   resetPasswordOTP: text("reset_password_otp"),
   resetPasswordOTPExpires: timestamp("reset_password_otp_expires", { withTimezone: true, mode: 'string' }),
-  resetAttempts: integer("reset_attempts").notNull().default(0),
-  lastResetAttempt: timestamp("last_reset_attempt", { withTimezone: true, mode: 'string' }),
-  tokenVersion: integer("token_version").notNull().default(0)
-}, (table) => ({
-  emailIdx: index("email_idx").on(table.email),
-  verificationOTPIdx: index("verification_otp_idx").on(table.verificationOTP),
-  resetPasswordOTPIdx: index("reset_password_otp_idx").on(table.resetPasswordOTP)
-}));
+});
 
 export const transportType = z.enum(["PERSONAL", "UBER", "CNG"]);
 export type TransportType = z.infer<typeof transportType>;

@@ -135,33 +135,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async setResetPasswordOTP(userId: number, otp: string, expires: Date): Promise<void> {
-    // Reset attempts cooldown period (15 minutes)
-    const cooldownPeriod = 15 * 60 * 1000; // 15 minutes in milliseconds
-
-    const user = await this.getUser(userId);
-    if (!user) throw new Error("User not found");
-
-    // Check if user is in cooldown period
-    if (user.lastResetAttempt) {
-      const lastAttempt = new Date(user.lastResetAttempt);
-      const timeSinceLastAttempt = Date.now() - lastAttempt.getTime();
-
-      if (timeSinceLastAttempt < cooldownPeriod && user.resetAttempts >= 3) {
-        throw new Error("Too many reset attempts. Please try again later.");
-      }
-    }
-
-    // If cooldown period has passed, reset the attempts counter
-    const shouldResetAttempts = !user.lastResetAttempt ||
-      (Date.now() - new Date(user.lastResetAttempt).getTime() >= cooldownPeriod);
-
     await db
       .update(users)
       .set({
         resetPasswordOTP: otp,
-        resetPasswordOTPExpires: expires.toISOString(),
-        resetAttempts: shouldResetAttempts ? 1 : sql`${users.resetAttempts} + 1`,
-        lastResetAttempt: new Date().toISOString()
+        resetPasswordOTPExpires: expires.toISOString()
       })
       .where(eq(users.id, userId));
   }
@@ -187,10 +165,7 @@ export class DatabaseStorage implements IStorage {
       .set({
         password: newPassword,
         resetPasswordOTP: null,
-        resetPasswordOTPExpires: null,
-        resetAttempts: 0,
-        lastResetAttempt: null,
-        tokenVersion: sql`${users.tokenVersion} + 1` // Increment token version to invalidate all sessions
+        resetPasswordOTPExpires: null
       })
       .where(eq(users.id, userId));
   }
@@ -521,89 +496,6 @@ export class DatabaseStorage implements IStorage {
     );
 
     return ridesWithDetails;
-  }
-  async clearUserSessions(userId: number): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      console.log(`[Session Cleanup] Starting session cleanup for user ${userId}`);
-
-      this.sessionStore.all((err, sessions) => {
-        if (err) {
-          console.error('[Session Cleanup] Error fetching sessions:', err);
-          reject(err);
-          return;
-        }
-
-        if (!sessions) {
-          console.log('[Session Cleanup] No sessions found');
-          resolve();
-          return;
-        }
-
-        // Log session store content type and structure
-        console.log('[Session Cleanup] Session store type:', typeof sessions);
-        console.log('[Session Cleanup] Is Array:', Array.isArray(sessions));
-
-        // Convert sessions to array if it's not already
-        const sessionsArray = Array.isArray(sessions)
-          ? sessions
-          : Object.values(sessions);
-
-        console.log(`[Session Cleanup] Total sessions found: ${sessionsArray.length}`);
-
-        // Find all sessions for this user
-        const userSessions = sessionsArray.filter((session: any) => {
-          try {
-            const isUserSession = session?.passport?.user === userId;
-            if (isUserSession) {
-              console.log('[Session Cleanup] Found user session:', session.id);
-            }
-            return isUserSession;
-          } catch (e) {
-            console.warn('[Session Cleanup] Invalid session data:', e);
-            return false;
-          }
-        });
-
-        console.log(`[Session Cleanup] Found ${userSessions.length} sessions for user ${userId}`);
-
-        if (userSessions.length === 0) {
-          console.log('[Session Cleanup] No sessions to clean up');
-          resolve();
-          return;
-        }
-
-        // Create an array of promises for session deletion
-        const deletionPromises = userSessions.map((session: any) =>
-          new Promise<void>((resolveDelete) => {
-            try {
-              console.log(`[Session Cleanup] Attempting to destroy session ${session.id}`);
-              this.sessionStore.destroy(session.id, (destroyErr) => {
-                if (destroyErr) {
-                  console.warn(`[Session Cleanup] Failed to destroy session ${session.id}:`, destroyErr);
-                } else {
-                  console.log(`[Session Cleanup] Successfully destroyed session ${session.id}`);
-                }
-                resolveDelete();
-              });
-            } catch (e) {
-              console.warn(`[Session Cleanup] Error during session destruction:`, e);
-              resolveDelete();
-            }
-          })
-        );
-
-        // Wait for all sessions to be deleted
-        Promise.all(deletionPromises)
-          .then(() => {
-            console.log('[Session Cleanup] All sessions cleaned up successfully');
-            resolve();
-          })
-          .catch((error) => {
-            console.error('[Session Cleanup] Error during session cleanup:', error);
-            resolve(); // Resolve anyway to prevent hanging
-          });
-      });
-    });
   }
 }
 
