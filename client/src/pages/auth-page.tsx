@@ -55,6 +55,7 @@ export default function AuthPage() {
   const [verifyingOTP, setVerifyingOTP] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [verificationMode, setVerificationMode] = useState<'email' | 'password'>('email');
+  const [showResetOTP, setShowResetOTP] = useState(false);
 
   const loginForm = useForm({
     resolver: zodResolver(loginSchema),
@@ -141,17 +142,18 @@ export default function AuthPage() {
     try {
       setIsResettingPassword(true);
       const response = await apiRequest("POST", "/api/forgot-password", data);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to send reset code');
-      }
       const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to send reset code');
+      }
+
       resetPasswordForm.setValue('email', data.email);
+      setShowResetOTP(true);
       toast({
         title: "Reset code sent",
         description: result.message,
       });
-      setVerificationMode('password');
     } catch (error) {
       toast({
         title: "Error",
@@ -168,11 +170,17 @@ export default function AuthPage() {
       setIsResettingPassword(true);
       const response = await apiRequest("POST", "/api/reset-password", data);
       const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to reset password');
+      }
+
       toast({
         title: "Password reset successful",
         description: result.message,
       });
       setActiveTab("login");
+      setShowResetOTP(false);
     } catch (error) {
       toast({
         title: "Reset failed",
@@ -386,7 +394,101 @@ export default function AuthPage() {
               </TabsContent>
 
               <TabsContent value="verify">
-                {verificationMode === 'email' ? (
+                {verificationMode === 'password' && (
+                  <Form {...resetPasswordForm}>
+                    <form
+                      onSubmit={resetPasswordForm.handleSubmit((data) => {
+                        if (!showResetOTP) {
+                          onForgotPassword({ email: data.email });
+                        } else {
+                          onResetPassword(data);
+                        }
+                      })}
+                      className="space-y-4 mt-4"
+                    >
+                      <Alert>
+                        <AlertDescription>
+                          {!showResetOTP 
+                            ? "Enter your email to receive a password reset code."
+                            : "Enter the reset code sent to your email and choose a new password."
+                          }
+                        </AlertDescription>
+                      </Alert>
+
+                      <FormField
+                        control={resetPasswordForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="email"
+                                placeholder="Enter your registered email"
+                                {...field}
+                                disabled={showResetOTP}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {showResetOTP && (
+                        <>
+                          <FormField
+                            control={resetPasswordForm.control}
+                            name="otp"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Reset Code</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="Enter 6-digit code"
+                                    maxLength={6}
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={resetPasswordForm.control}
+                            name="newPassword"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>New Password</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="password"
+                                    placeholder="Enter new password"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </>
+                      )}
+
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={isResettingPassword}
+                      >
+                        {isResettingPassword && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        {!showResetOTP ? 'Send Reset Code' : 'Reset Password'}
+                      </Button>
+                    </form>
+                  </Form>
+                )}
+
+                {verificationMode === 'email' && (
                   <Form {...verifyEmailForm}>
                     <form
                       onSubmit={verifyEmailForm.handleSubmit(onVerifyEmail)}
@@ -444,113 +546,6 @@ export default function AuthPage() {
                         )}
                         Verify Email
                       </Button>
-                    </form>
-                  </Form>
-                ) : (
-                  <Form {...resetPasswordForm}>
-                    <form
-                      onSubmit={resetPasswordForm.handleSubmit((data) => {
-                        if (!data.otp) {
-                          onForgotPassword({ email: data.email });
-                        } else {
-                          onResetPassword(data);
-                        }
-                      })}
-                      className="space-y-4 mt-4"
-                    >
-                      {!resetPasswordForm.getValues("otp") ? (
-                        <>
-                          <Alert>
-                            <AlertDescription>
-                              Enter your email to receive a password reset code.
-                            </AlertDescription>
-                          </Alert>
-
-                          <FormField
-                            control={resetPasswordForm.control}
-                            name="email"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Email</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="email"
-                                    placeholder="Enter your registered email"
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <Button
-                            type="submit"
-                            className="w-full"
-                            disabled={isResettingPassword}
-                          >
-                            {isResettingPassword && (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            )}
-                            Send Reset Code
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <Alert>
-                            <AlertDescription>
-                              Enter the reset code sent to your email and choose a new password.
-                            </AlertDescription>
-                          </Alert>
-
-                          <FormField
-                            control={resetPasswordForm.control}
-                            name="otp"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Reset Code</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    placeholder="Enter 6-digit code"
-                                    maxLength={6}
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <FormField
-                            control={resetPasswordForm.control}
-                            name="newPassword"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>New Password</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="password"
-                                    placeholder="Enter new password"
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <Button
-                            type="submit"
-                            className="w-full"
-                            disabled={isResettingPassword}
-                          >
-                            {isResettingPassword && (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            )}
-                            Reset Password
-                          </Button>
-                        </>
-                      )}
                     </form>
                   </Form>
                 )}
