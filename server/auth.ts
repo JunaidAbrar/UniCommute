@@ -157,6 +157,7 @@ export function setupAuth(app: Express) {
 
       res.status(200).json({ message: "Password reset code sent to your email" });
     } catch (error) {
+      console.error('Password reset request error:', error);
       res.status(500).json({ message: "Error processing password reset request" });
     }
   });
@@ -178,6 +179,7 @@ export function setupAuth(app: Express) {
 
       res.status(200).json({ message: "Password updated successfully" });
     } catch (error) {
+      console.error('Password reset error:', error);
       res.status(500).json({ message: "Error resetting password" });
     }
   });
@@ -207,7 +209,7 @@ export function setupAuth(app: Express) {
     res.json(req.user);
   });
 
-  setupWebSocket(app); //Moved setupWebSocket here
+  setupWebSocket(app); 
 
 }
 
