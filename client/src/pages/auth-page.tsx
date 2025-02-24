@@ -137,7 +137,7 @@ export default function AuthPage() {
     }
   };
 
-  const onForgotPassword = async (data: z.infer<typeof verifyEmailSchema>) => {
+  const onForgotPassword = async (data: { email: string }) => {
     try {
       setIsResettingPassword(true);
       const response = await apiRequest("POST", "/api/forgot-password", { email: data.email });
@@ -148,9 +148,6 @@ export default function AuthPage() {
         title: "Reset code sent",
         description: result.message,
       });
-      // Clear OTP and show the OTP input form
-      resetPasswordForm.setValue('otp', '');
-      resetPasswordForm.setValue('newPassword', '');
     } catch (error) {
       toast({
         title: "Error",
@@ -448,56 +445,53 @@ export default function AuthPage() {
                 ) : (
                   <Form {...resetPasswordForm}>
                     <form
-                      onSubmit={!resetPasswordForm.getValues("otp") ? 
-                        resetPasswordForm.handleSubmit(onForgotPassword) :
-                        resetPasswordForm.handleSubmit(onResetPassword)}
                       className="space-y-4 mt-4"
+                      onSubmit={resetPasswordForm.handleSubmit(
+                        !resetPasswordForm.getValues("otp")
+                          ? (data) => onForgotPassword({ email: data.email })
+                          : onResetPassword
+                      )}
                     >
+                      <Alert>
+                        <AlertDescription>
+                          {!resetPasswordForm.getValues("otp")
+                            ? "Enter your email to receive a password reset code."
+                            : "Enter the reset code sent to your email and choose a new password."}
+                        </AlertDescription>
+                      </Alert>
+
+                      <FormField
+                        control={resetPasswordForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="email"
+                                placeholder="Enter your registered email"
+                                {...field}
+                                disabled={!!resetPasswordForm.getValues("otp")}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
                       {!resetPasswordForm.getValues("otp") ? (
-                        <>
-                          <Alert>
-                            <AlertDescription>
-                              Enter your email to receive a password reset code.
-                            </AlertDescription>
-                          </Alert>
-
-                          <FormField
-                            control={resetPasswordForm.control}
-                            name="email"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Email</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="email"
-                                    placeholder="Enter your registered email"
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <Button
-                            type="submit"
-                            className="w-full"
-                            disabled={isResettingPassword}
-                          >
-                            {isResettingPassword && (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            )}
-                            Send Reset Code
-                          </Button>
-                        </>
+                        <Button
+                          type="submit"
+                          className="w-full"
+                          disabled={isResettingPassword}
+                        >
+                          {isResettingPassword && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          )}
+                          Send Reset Code
+                        </Button>
                       ) : (
                         <>
-                          <Alert>
-                            <AlertDescription>
-                              Enter the reset code sent to your email and choose a new password.
-                            </AlertDescription>
-                          </Alert>
-
                           <FormField
                             control={resetPasswordForm.control}
                             name="otp"
@@ -534,16 +528,30 @@ export default function AuthPage() {
                             )}
                           />
 
-                          <Button
-                            type="submit"
-                            className="w-full"
-                            disabled={isResettingPassword}
-                          >
-                            {isResettingPassword && (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            )}
-                            Reset Password
-                          </Button>
+                          <div className="space-y-2">
+                            <Button
+                              type="submit"
+                              className="w-full"
+                              disabled={isResettingPassword}
+                            >
+                              {isResettingPassword && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              )}
+                              Reset Password
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full"
+                              onClick={() => {
+                                resetPasswordForm.reset();
+                                setVerificationMode('password');
+                              }}
+                            >
+                              Try Different Email
+                            </Button>
+                          </div>
                         </>
                       )}
                     </form>
