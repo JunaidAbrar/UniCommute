@@ -2,10 +2,83 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
+import { generateToken, sendPasswordResetEmail } from "./email";
 import { insertRideSchema, insertRequestSchema, insertMessageSchema } from "@shared/schema";
+import { scrypt, randomBytes } from "crypto";
+import { promisify } from "util";
+
+const scryptAsync = promisify(scrypt);
 
 export async function setupRoutes(app: Express): Promise<Server> {
   setupAuth(app);
+
+  // Password Reset Flow
+  app.post("/api/forgot-password", async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    try {
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        // Don't reveal whether the email exists
+        return res.status(200).json({
+          message: "If an account exists with this email, you will receive a password reset link."
+        });
+      }
+
+      // Generate token with 15 minutes expiry
+      const token = await generateToken();
+      const expires = new Date(Date.now() + 15 * 60 * 1000);
+
+      await storage.setResetToken(user.id, token, expires);
+      await sendPasswordResetEmail(user, token);
+
+      res.status(200).json({
+        message: "If an account exists with this email, you will receive a password reset link."
+      });
+    } catch (error) {
+      console.error('Error in forgot password:', error);
+      res.status(500).json({
+        message: "Error processing password reset request"
+      });
+    }
+  });
+
+  app.post("/api/reset-password", async (req, res) => {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      return res.status(400).json({
+        message: "Token and new password are required"
+      });
+    }
+
+    try {
+      const user = await storage.getUserByResetToken(token);
+      if (!user) {
+        return res.status(400).json({
+          message: "Invalid or expired reset token"
+        });
+      }
+
+      // Hash the new password
+      const salt = randomBytes(16).toString("hex");
+      const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+      const hashedPassword = `${buf.toString("hex")}.${salt}`;
+
+      await storage.updatePassword(user.id, hashedPassword);
+
+      res.status(200).json({
+        message: "Password has been reset successfully. Please log in with your new password."
+      });
+    } catch (error) {
+      console.error('Error in reset password:', error);
+      res.status(500).json({
+        message: "Error resetting password"
+      });
+    }
+  });
 
   const httpServer = createServer(app);
 

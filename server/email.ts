@@ -94,3 +94,26 @@ export async function sendVerificationOTP(user: User, otp: string) {
 
   await sendMail(mailOptions);
 }
+
+export async function sendPasswordResetEmail(user: User, token: string) {
+  console.log('Preparing to send password reset email to:', user.email);
+
+  const resetLink = `${process.env.APP_URL}/reset-password?token=${token}`;
+
+  const mailOptions = {
+    from: process.env.SMTP_FROM || 'no-reply@unicommute.com',
+    to: user.email,
+    subject: 'Reset your UniCommute password',
+    html: `
+      <h1>Password Reset Request</h1>
+      <p>A password reset was requested for your UniCommute account.</p>
+      <p>Click the link below to reset your password:</p>
+      <a href="${resetLink}">${resetLink}</a>
+      <p>This link will expire in 15 minutes.</p>
+      <p>If you didn't request this password reset, please ignore this email.</p>
+      <p>For security, please update your password and enable two-factor authentication if you received this email unexpectedly.</p>
+    `
+  };
+
+  await sendMail(mailOptions);
+}

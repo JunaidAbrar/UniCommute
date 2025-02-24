@@ -82,7 +82,8 @@ export class DatabaseStorage implements IStorage {
       .update(users)
       .set({
         resetPasswordToken: token,
-        resetPasswordExpires: expires.toISOString()
+        resetPasswordExpires: expires.toISOString(),
+        tokenVersion: sql`${users.tokenVersion} + 1`
       })
       .where(eq(users.id, userId));
   }
@@ -91,7 +92,12 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .select()
       .from(users)
-      .where(eq(users.resetPasswordToken, token));
+      .where(
+        and(
+          eq(users.resetPasswordToken, token),
+          sql`${users.resetPasswordExpires} > NOW()`
+        )
+      );
 
     return user;
   }
@@ -138,13 +144,44 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  // Replace setResetPasswordOTP and verifyResetPasswordOTP with the existing methods
+
   async setResetPasswordOTP(userId: number, otp: string, expires: Date): Promise<void> {
-    return this.setVerificationOTP(userId, otp, expires);
+    const now = new Date();
+    await db
+      .update(users)
+      .set({
+        resetPasswordOTP: otp,
+        resetPasswordOTPExpires: expires.toISOString(),
+        resetAttempts: 0,
+        lastResetAttempt: now.toISOString()
+      })
+      .where(eq(users.id, userId));
   }
 
   async verifyResetPasswordOTP(email: string, otp: string): Promise<User | undefined> {
-    return this.verifyOTP(email, otp);
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.email, email),
+          eq(users.resetPasswordOTP, otp),
+          sql`${users.resetPasswordOTPExpires} > NOW()`
+        )
+      );
+
+    if (!user) return undefined;
+
+    // Update reset attempt tracking
+    await db
+      .update(users)
+      .set({
+        resetAttempts: sql`${users.resetAttempts} + 1`,
+        lastResetAttempt: new Date().toISOString()
+      })
+      .where(eq(users.id, user.id));
+
+    return user;
   }
 
   async updatePassword(userId: number, newPassword: string): Promise<void> {
@@ -152,10 +189,17 @@ export class DatabaseStorage implements IStorage {
       .update(users)
       .set({
         password: newPassword,
-        verificationOTP: null,
-        verificationOTPExpires: null
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+        resetPasswordOTP: null,
+        resetPasswordOTPExpires: null,
+        resetAttempts: 0,
+        lastResetAttempt: null
       })
       .where(eq(users.id, userId));
+
+    // Clear all active sessions for security
+    await this.clearUserSessions(userId);
   }
 
 
