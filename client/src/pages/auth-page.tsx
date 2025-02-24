@@ -29,11 +29,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { Loader2 } from "lucide-react";
 
 const loginSchema = insertUserSchema.pick({ username: true, password: true });
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Please enter a valid email address")
+});
 
 export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("login");
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
   const loginForm = useForm({
     resolver: zodResolver(loginSchema),
@@ -54,9 +66,47 @@ export default function AuthPage() {
     },
   });
 
+  const forgotPasswordForm = useForm({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: {
+      email: "",
+    },
+  });
+
   if (user) {
     return <Redirect to="/" />;
   }
+
+  const onForgotPassword = async (data: z.infer<typeof forgotPasswordSchema>) => {
+    try {
+      setIsResettingPassword(true);
+      const response = await apiRequest("POST", "/api/forgot-password", data);
+      const result = await response.json();
+      toast({
+        title: "Password Reset Email Sent",
+        description: result.message,
+      });
+      setActiveTab("login");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to send reset email",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
+  const onRegister = async (data: z.infer<typeof insertUserSchema>) => {
+    try {
+      await registerMutation.mutateAsync(data);
+      setRegistrationSuccess(true);
+      setActiveTab("login");
+    } catch (error) {
+      console.error("Registration error:", error);
+    }
+  };
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4">
@@ -69,11 +119,19 @@ export default function AuthPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="login" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="register">Register</TabsTrigger>
               </TabsList>
+
+              {registrationSuccess && (
+                <Alert className="mt-4">
+                  <AlertDescription>
+                    Registration successful! Please check your email to verify your account before logging in.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <TabsContent value="login">
                 <Form {...loginForm}>
@@ -120,8 +178,21 @@ export default function AuthPage() {
                       className="w-full mt-6"
                       disabled={loginMutation.isPending}
                     >
+                      {loginMutation.isPending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
                       Login
                     </Button>
+
+                    <div className="text-center mt-4">
+                      <button
+                        type="button"
+                        className="text-sm text-primary hover:underline"
+                        onClick={() => setActiveTab("forgot-password")}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                   </form>
                 </Form>
               </TabsContent>
@@ -129,9 +200,7 @@ export default function AuthPage() {
               <TabsContent value="register">
                 <Form {...registerForm}>
                   <form
-                    onSubmit={registerForm.handleSubmit((data) =>
-                      registerMutation.mutate(data)
-                    )}
+                    onSubmit={registerForm.handleSubmit(onRegister)}
                     className="space-y-4 mt-4"
                   >
                     <div className="space-y-4">
@@ -158,11 +227,14 @@ export default function AuthPage() {
                             <FormControl>
                               <Input 
                                 type="email"
-                                placeholder="Enter your email"
+                                placeholder="Enter your BRAC University email"
                                 {...field}
                               />
                             </FormControl>
                             <FormMessage />
+                            <p className="text-xs text-muted-foreground">
+                              Only @g.bracu.ac.bd or @bracu.ac.bd email addresses are allowed
+                            </p>
                           </FormItem>
                         )}
                       />
@@ -232,7 +304,57 @@ export default function AuthPage() {
                       className="w-full mt-6"
                       disabled={registerMutation.isPending}
                     >
+                      {registerMutation.isPending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
                       Register
+                    </Button>
+                  </form>
+                </Form>
+              </TabsContent>
+
+              <TabsContent value="forgot-password">
+                <Form {...forgotPasswordForm}>
+                  <form
+                    onSubmit={forgotPasswordForm.handleSubmit(onForgotPassword)}
+                    className="space-y-4 mt-4"
+                  >
+                    <FormField
+                      control={forgotPasswordForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="email"
+                              placeholder="Enter your registered email"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={isResettingPassword}
+                    >
+                      {isResettingPassword && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Send Reset Link
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full"
+                      onClick={() => setActiveTab("login")}
+                    >
+                      Back to Login
                     </Button>
                   </form>
                 </Form>

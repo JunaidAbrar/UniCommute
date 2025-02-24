@@ -15,7 +15,12 @@ export interface IStorage {
   // User Operations
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  verifyEmail(token: string): Promise<User | undefined>;
+  setResetToken(userId: number, token: string, expires: Date): Promise<void>;
+  getUserByResetToken(token: string): Promise<User | undefined>;
+  updatePassword(userId: number, newPassword: string): Promise<void>;
 
   // Ride Operations
   createRide(hostId: number, ride: InsertRide): Promise<Ride>;

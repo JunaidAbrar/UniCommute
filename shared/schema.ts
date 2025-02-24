@@ -9,7 +9,11 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   university: text("university").notNull(),
   gender: text("gender").notNull(),
-  avatar: text("avatar")
+  avatar: text("avatar"),
+  isVerified: boolean("is_verified").notNull().default(false),
+  verificationToken: text("verification_token"),
+  resetPasswordToken: text("reset_password_token"),
+  resetPasswordExpires: timestamp("reset_password_expires", { withTimezone: true, mode: 'string' }),
 });
 
 export const transportType = z.enum(["PERSONAL", "UBER", "CNG"]);
@@ -21,7 +25,7 @@ export const rides = pgTable(
     id: serial("id").primaryKey(),
     hostId: integer("host_id")
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }), 
+      .references(() => users.id, { onDelete: 'cascade' }),
     origin: text("origin").notNull(),
     destination: text("destination").notNull(),
     stopPoints: text("stop_points").array().notNull().default([]),
@@ -49,10 +53,10 @@ export const requests = pgTable(
     id: serial("id").primaryKey(),
     rideId: integer("ride_id")
       .notNull()
-      .references(() => rides.id, { onDelete: 'cascade' }), 
+      .references(() => rides.id, { onDelete: 'cascade' }),
     userId: integer("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }), 
+      .references(() => users.id, { onDelete: 'cascade' }),
     status: text("status").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).notNull().defaultNow()
   },
@@ -68,10 +72,10 @@ export const messages = pgTable(
     id: serial("id").primaryKey(),
     rideId: integer("ride_id")
       .notNull()
-      .references(() => rides.id, { onDelete: 'cascade' }), 
+      .references(() => rides.id, { onDelete: 'cascade' }),
     userId: integer("user_id")
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }), 
+      .references(() => users.id, { onDelete: 'cascade' }),
     content: text("content").notNull(),
     timestamp: timestamp("timestamp", { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
     type: text("type").notNull().default('text'),
@@ -84,13 +88,26 @@ export const messages = pgTable(
   })
 );
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-  email: true,
-  university: true,
-  gender: true
-});
+export const insertUserSchema = createInsertSchema(users)
+  .pick({
+    username: true,
+    password: true,
+    email: true,
+    university: true,
+    gender: true
+  })
+  .extend({
+    email: z.string().email().refine(
+      (email) => {
+        const validDomains = ['g.bracu.ac.bd', 'bracu.ac.bd'];
+        const domain = email.split('@')[1];
+        return validDomains.includes(domain);
+      },
+      {
+        message: "Only BRAC University email domains are allowed (g.bracu.ac.bd or bracu.ac.bd)"
+      }
+    )
+  });
 
 export const insertRideSchema = z.object({
   origin: z.string().min(1, "Origin is required"),

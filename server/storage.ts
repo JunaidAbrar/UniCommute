@@ -52,6 +52,62 @@ export class DatabaseStorage implements IStorage {
     return newUser;
   }
 
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async verifyEmail(token: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.verificationToken, token));
+
+    if (!user) return undefined;
+
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        isVerified: true,
+        verificationToken: null
+      })
+      .where(eq(users.id, user.id))
+      .returning();
+
+    return updatedUser;
+  }
+
+  async setResetToken(userId: number, token: string, expires: Date): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        resetPasswordToken: token,
+        resetPasswordExpires: expires.toISOString()
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.resetPasswordToken, token));
+
+    return user;
+  }
+
+  async updatePassword(userId: number, newPassword: string): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        password: newPassword,
+        resetPasswordToken: null,
+        resetPasswordExpires: null
+      })
+      .where(eq(users.id, userId));
+  }
+
+
   // Ride Operations
   async hasActiveRide(userId: number): Promise<boolean> {
     // Improved to only check for active rides

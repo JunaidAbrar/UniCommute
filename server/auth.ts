@@ -6,6 +6,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser, insertUserSchema } from "@shared/schema";
+import { generateToken, sendVerificationEmail, sendPasswordResetEmail } from "./email";
 
 declare global {
   namespace Express {
@@ -87,6 +88,10 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Invalid username or password" });
         }
 
+        if (!user.isVerified) {
+          return done(null, false, { message: "Please verify your email before logging in" });
+        }
+
         // Reset login attempts on successful login
         loginAttempts.delete(username);
         return done(null, user);
@@ -125,17 +130,87 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Username already exists" });
       }
 
+      // Generate verification token
+      const verificationToken = await generateToken();
+
       const user = await storage.createUser({
         ...parseResult.data,
         password: await hashPassword(parseResult.data.password),
+        verificationToken
       });
 
-      req.login(user, (err) => {
-        if (err) return next(err);
-        res.status(201).json(user);
+      // Send verification email
+      await sendVerificationEmail(user, verificationToken);
+
+      res.status(201).json({ 
+        message: "Registration successful. Please check your email to verify your account.",
+        user: { ...user, password: undefined }
       });
     } catch (error) {
       next(error);
+    }
+  });
+
+  app.get("/api/verify-email", async (req, res) => {
+    const { token } = req.query;
+    if (!token) {
+      return res.status(400).json({ message: "Verification token is required" });
+    }
+
+    try {
+      const user = await storage.verifyEmail(token as string);
+      if (!user) {
+        return res.status(400).json({ message: "Invalid or expired verification token" });
+      }
+
+      res.status(200).json({ message: "Email verified successfully. You can now log in." });
+    } catch (error) {
+      res.status(500).json({ message: "Error verifying email" });
+    }
+  });
+
+  app.post("/api/forgot-password", async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    try {
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const resetToken = await generateToken();
+      const resetExpires = new Date(Date.now() + 3600000); // 1 hour
+
+      await storage.setResetToken(user.id, resetToken, resetExpires);
+      await sendPasswordResetEmail(user, resetToken);
+
+      res.status(200).json({ message: "Password reset instructions sent to your email" });
+    } catch (error) {
+      res.status(500).json({ message: "Error processing password reset request" });
+    }
+  });
+
+  app.post("/api/reset-password", async (req, res) => {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: "Token and new password are required" });
+    }
+
+    try {
+      const user = await storage.getUserByResetToken(token);
+      if (!user || !user.resetPasswordExpires || new Date() > new Date(user.resetPasswordExpires)) {
+        return res.status(400).json({ message: "Invalid or expired reset token" });
+      }
+
+      const hashedPassword = await hashPassword(newPassword);
+      await storage.updatePassword(user.id, hashedPassword);
+
+      res.status(200).json({ message: "Password updated successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Error resetting password" });
     }
   });
 
