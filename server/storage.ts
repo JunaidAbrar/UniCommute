@@ -114,49 +114,37 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(users.email, email),
           eq(users.verificationOTP, otp),
-          eq(users.isVerified, false),
           sql`${users.verificationOTPExpires} > NOW()`
         )
       );
 
     if (!user) return undefined;
 
-    const [updatedUser] = await db
-      .update(users)
-      .set({
-        isVerified: true,
-        verificationOTP: null,
-        verificationOTPExpires: null
-      })
-      .where(eq(users.id, user.id))
-      .returning();
+    // Only update isVerified if the user is not already verified
+    if (!user.isVerified) {
+      const [updatedUser] = await db
+        .update(users)
+        .set({
+          isVerified: true,
+          verificationOTP: null,
+          verificationOTPExpires: null
+        })
+        .where(eq(users.id, user.id))
+        .returning();
 
-    return updatedUser;
+      return updatedUser;
+    }
+
+    return user;
   }
 
+  // Replace setResetPasswordOTP and verifyResetPasswordOTP with the existing methods
   async setResetPasswordOTP(userId: number, otp: string, expires: Date): Promise<void> {
-    await db
-      .update(users)
-      .set({
-        resetPasswordOTP: otp,
-        resetPasswordOTPExpires: expires.toISOString()
-      })
-      .where(eq(users.id, userId));
+    return this.setVerificationOTP(userId, otp, expires);
   }
 
   async verifyResetPasswordOTP(email: string, otp: string): Promise<User | undefined> {
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(
-        and(
-          eq(users.email, email),
-          eq(users.resetPasswordOTP, otp),
-          sql`${users.resetPasswordOTPExpires} > NOW()`
-        )
-      );
-
-    return user;
+    return this.verifyOTP(email, otp);
   }
 
   async updatePassword(userId: number, newPassword: string): Promise<void> {
@@ -164,8 +152,8 @@ export class DatabaseStorage implements IStorage {
       .update(users)
       .set({
         password: newPassword,
-        resetPasswordOTP: null,
-        resetPasswordOTPExpires: null
+        verificationOTP: null,
+        verificationOTPExpires: null
       })
       .where(eq(users.id, userId));
   }
@@ -310,36 +298,32 @@ export class DatabaseStorage implements IStorage {
       rides.map(async (ride) => {
         const host = await this.getUser(ride.hostId);
         if (!host) {
-          // If host not found, skip this ride instead of throwing error
-          console.warn(`Host not found for ride ${ride.id}, skipping`);
           return null;
         }
 
         const participantUsers = await Promise.all(
           ride.participants.map(async (id) => {
             const user = await this.getUser(id);
-            if (!user) {
-              console.warn(`Participant not found: ${id}, skipping`);
-              return null;
-            }
-            return user;
+            return user || null;
           })
-        ).then(users => users.filter(Boolean)); // Remove null values
+        );
 
-        const rideWithDetails: RideWithDetails = {
+        // Filter out null values and assert the type
+        const validParticipants = participantUsers.filter((user): user is User => user !== null);
+
+        return {
           ...ride,
           host: {
             username: host.username,
             university: host.university
           },
-          participants: participantUsers
+          participants: validParticipants
         };
-
-        return rideWithDetails;
       })
-    ).then(rides => rides.filter(Boolean)); // Remove null values
+    );
 
-    return ridesWithDetails;
+    // Filter out null values from the rides array
+    return ridesWithDetails.filter((ride): ride is RideWithDetails => ride !== null);
   }
 
   async transferRideOwnership(rideId: number, newHostId: number): Promise<Ride> {
@@ -496,6 +480,12 @@ export class DatabaseStorage implements IStorage {
     );
 
     return ridesWithDetails;
+  }
+  async clearUserSessions(userId: number): Promise<void> {
+    // Using drizzle-orm's sql template literal for safe SQL injection
+    await db.execute(
+      sql`DELETE FROM session WHERE sess->>'passport'->>'user' = ${userId.toString()}`
+    );
   }
 }
 

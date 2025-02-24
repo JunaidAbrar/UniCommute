@@ -1,6 +1,6 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { Express } from "express";
+import { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
@@ -99,7 +99,7 @@ export function setupAuth(app: Express) {
       } catch (error) {
         return done(error);
       }
-    }),
+    })
   );
 
   passport.serializeUser((user, done) => done(null, user.id));
@@ -119,9 +119,9 @@ export function setupAuth(app: Express) {
     try {
       const parseResult = insertUserSchema.safeParse(req.body);
       if (!parseResult.success) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Invalid registration data",
-          errors: parseResult.error.errors 
+          errors: parseResult.error.errors
         });
       }
 
@@ -142,7 +142,7 @@ export function setupAuth(app: Express) {
       await storage.setVerificationOTP(user.id, otp, otpExpires);
       await sendVerificationOTP(user, otp);
 
-      res.status(201).json({ 
+      res.status(201).json({
         message: "Registration successful. Please check your email for verification code.",
         email: user.email
       });
@@ -161,6 +161,10 @@ export function setupAuth(app: Express) {
       const user = await storage.verifyOTP(email, otp);
       if (!user) {
         return res.status(400).json({ message: "Invalid or expired verification code" });
+      }
+
+      if (!user.isVerified) {
+        return res.status(400).json({ message: "Email verification failed" });
       }
 
       res.status(200).json({ message: "Email verified successfully. You can now log in." });
@@ -184,7 +188,7 @@ export function setupAuth(app: Express) {
       const otp = await generateOTP();
       const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-      await storage.setResetPasswordOTP(user.id, otp, otpExpires);
+      await storage.setVerificationOTP(user.id, otp, otpExpires);
       await sendPasswordResetOTP(user, otp);
 
       res.status(200).json({ message: "Password reset code sent to your email" });
@@ -200,7 +204,7 @@ export function setupAuth(app: Express) {
     }
 
     try {
-      const user = await storage.verifyResetPasswordOTP(email, otp);
+      const user = await storage.verifyOTP(email, otp);
       if (!user) {
         return res.status(400).json({ message: "Invalid or expired reset code" });
       }
@@ -218,7 +222,7 @@ export function setupAuth(app: Express) {
     }
 
     try {
-      const user = await storage.verifyResetPasswordOTP(email, otp);
+      const user = await storage.verifyOTP(email, otp);
       if (!user) {
         return res.status(400).json({ message: "Invalid or expired reset code" });
       }
@@ -232,8 +236,8 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+  app.post("/api/login", (req: Request, res: Response, next: NextFunction) => {
+    passport.authenticate("local", (err: Error | null, user: Express.User | false, info: { message: string } | undefined) => {
       if (err) return next(err);
       if (!user) {
         return res.status(401).json({ message: info?.message || "Authentication failed" });
@@ -245,14 +249,14 @@ export function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  app.post("/api/logout", (req, res, next) => {
+  app.post("/api/logout", (req: Request, res: Response, next: NextFunction) => {
     req.logout((err) => {
       if (err) return next(err);
       res.sendStatus(200);
     });
   });
 
-  app.get("/api/user", (req, res) => {
+  app.get("/api/user", (req: Request, res: Response) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.json(req.user);
   });
