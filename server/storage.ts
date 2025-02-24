@@ -11,7 +11,7 @@ import {
   Message, InsertMessage
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, not, sql, lt } from "drizzle-orm";
+import { eq, and, not, sql, lt, gt } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -50,6 +50,11 @@ export class DatabaseStorage implements IStorage {
   async createUser(user: InsertUser): Promise<User> {
     const [newUser] = await db.insert(users).values(user).returning();
     return newUser;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
   }
 
   // Ride Operations
@@ -342,7 +347,72 @@ export class DatabaseStorage implements IStorage {
 
     return messagesWithUsers;
   }
-  async getArchivedRides(userId: number): Promise<RideWithDetails[]> {
+  async verifyEmail(token: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.verificationToken, token),
+          gt(users.verificationTokenExpiry, new Date().toISOString())
+        )
+      );
+
+    if (!user) return undefined;
+
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        isVerified: true,
+        verificationToken: null,
+        verificationTokenExpiry: null
+      })
+      .where(eq(users.id, user.id))
+      .returning();
+
+    return updatedUser;
+  }
+
+  async setResetToken(userId: number, token: string, expiry: string): Promise<User> {
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        resetPasswordToken: token,
+        resetPasswordTokenExpiry: expiry
+      })
+      .where(eq(users.id, userId))
+      .returning();
+
+    if (!updatedUser) throw new Error("User not found");
+    return updatedUser;
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.resetPasswordToken, token),
+          gt(users.resetPasswordTokenExpiry, new Date().toISOString())
+        )
+      );
+
+    if (!user) return undefined;
+
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        password: newPassword,
+        resetPasswordToken: null,
+        resetPasswordTokenExpiry: null
+      })
+      .where(eq(users.id, user.id))
+      .returning();
+
+    return updatedUser;
+  }
+    async getArchivedRides(userId: number): Promise<RideWithDetails[]> {
     const rides = await db
       .select()
       .from(ridesTable)

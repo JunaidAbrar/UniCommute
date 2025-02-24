@@ -2,6 +2,9 @@ import { pgTable, text, serial, integer, boolean, timestamp, real, index } from 
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Define allowed email domains
+const ALLOWED_EMAIL_DOMAINS = ["bracu.ac.bd", "g.bracu.ac.bd"];
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -9,7 +12,20 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   university: text("university").notNull(),
   gender: text("gender").notNull(),
-  avatar: text("avatar")
+  avatar: text("avatar"),
+  isVerified: boolean("is_verified").notNull().default(false),
+  verificationToken: text("verification_token"),
+  verificationTokenExpiry: timestamp("verification_token_expiry", { withTimezone: true, mode: 'string' }),
+  resetPasswordToken: text("reset_password_token"),
+  resetPasswordTokenExpiry: timestamp("reset_password_token_expiry", { withTimezone: true, mode: 'string' })
+});
+
+// Validate email domain
+const emailSchema = z.string().email().refine((email) => {
+  const domain = email.split('@')[1];
+  return ALLOWED_EMAIL_DOMAINS.includes(domain);
+}, {
+  message: "Email must be from an allowed university domain (@bracu.ac.bd or @g.bracu.ac.bd)"
 });
 
 export const transportType = z.enum(["PERSONAL", "UBER", "CNG"]);
@@ -42,6 +58,18 @@ export const rides = pgTable(
     isArchivedIdx: index("is_archived_idx").on(table.isArchived)
   })
 );
+
+export const insertUserSchema = createInsertSchema(users)
+  .pick({
+    username: true,
+    password: true,
+    email: true,
+    university: true,
+    gender: true
+  })
+  .extend({
+    email: emailSchema
+  });
 
 export const requests = pgTable(
   "requests",
@@ -83,25 +111,6 @@ export const messages = pgTable(
     timestampIdx: index("messages_timestamp_idx").on(table.timestamp)
   })
 );
-
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-  email: true,
-  university: true,
-  gender: true
-});
-
-export const insertRideSchema = z.object({
-  origin: z.string().min(1, "Origin is required"),
-  destination: z.string().min(1, "Destination is required"),
-  stopPoints: z.array(z.string()).optional(),
-  departureTime: z.coerce.date(),
-  transportType: transportType,
-  seatsAvailable: z.number().min(1).max(6),
-  femaleOnly: z.boolean().default(false),
-  estimatedFare: z.number().min(0, "Estimated fare must be positive")
-});
 
 export const insertRequestSchema = createInsertSchema(requests).pick({
   rideId: true
