@@ -1,3 +1,4 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,22 +31,35 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
 const loginSchema = insertUserSchema.pick({ username: true, password: true });
+
+const verifyEmailSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+  otp: z.string().length(6, "Verification code must be 6 digits")
+});
+
 const forgotPasswordSchema = z.object({
   email: z.string().email("Please enter a valid email address")
+});
+
+const resetPasswordSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+  otp: z.string().length(6, "Reset code must be 6 digits"),
+  newPassword: z.string().min(6, "Password must be at least 6 characters")
 });
 
 export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("login");
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState<string | null>(null);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
-  const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [verifyingOTP, setVerifyingOTP] = useState(false);
 
   const loginForm = useForm({
     resolver: zodResolver(loginSchema),
@@ -66,6 +80,14 @@ export default function AuthPage() {
     },
   });
 
+  const verifyEmailForm = useForm({
+    resolver: zodResolver(verifyEmailSchema),
+    defaultValues: {
+      email: "",
+      otp: "",
+    },
+  });
+
   const forgotPasswordForm = useForm({
     resolver: zodResolver(forgotPasswordSchema),
     defaultValues: {
@@ -73,24 +95,74 @@ export default function AuthPage() {
     },
   });
 
+  const resetPasswordForm = useForm({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+      email: "",
+      otp: "",
+      newPassword: "",
+    },
+  });
+
   if (user) {
     return <Redirect to="/" />;
   }
+
+  const onRegister = async (data: z.infer<typeof insertUserSchema>) => {
+    try {
+      const response = await apiRequest("POST", "/api/register", data);
+      const result = await response.json();
+      setRegisteredEmail(data.email);
+      setActiveTab("verify-email");
+      toast({
+        title: "Registration successful",
+        description: result.message,
+      });
+    } catch (error) {
+      toast({
+        title: "Registration failed",
+        description: error instanceof Error ? error.message : "Failed to register",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const onVerifyEmail = async (data: z.infer<typeof verifyEmailSchema>) => {
+    try {
+      setVerifyingOTP(true);
+      const response = await apiRequest("POST", "/api/verify-email", data);
+      const result = await response.json();
+      toast({
+        title: "Email verified",
+        description: result.message,
+      });
+      setActiveTab("login");
+    } catch (error) {
+      toast({
+        title: "Verification failed",
+        description: error instanceof Error ? error.message : "Failed to verify email",
+        variant: "destructive",
+      });
+    } finally {
+      setVerifyingOTP(false);
+    }
+  };
 
   const onForgotPassword = async (data: z.infer<typeof forgotPasswordSchema>) => {
     try {
       setIsResettingPassword(true);
       const response = await apiRequest("POST", "/api/forgot-password", data);
       const result = await response.json();
+      setResetEmail(data.email);
+      setActiveTab("reset-password");
       toast({
-        title: "Password Reset Email Sent",
+        title: "Reset code sent",
         description: result.message,
       });
-      setActiveTab("login");
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send reset email",
+        description: error instanceof Error ? error.message : "Failed to send reset code",
         variant: "destructive",
       });
     } finally {
@@ -98,13 +170,24 @@ export default function AuthPage() {
     }
   };
 
-  const onRegister = async (data: z.infer<typeof insertUserSchema>) => {
+  const onResetPassword = async (data: z.infer<typeof resetPasswordSchema>) => {
     try {
-      await registerMutation.mutateAsync(data);
-      setRegistrationSuccess(true);
+      setIsResettingPassword(true);
+      const response = await apiRequest("POST", "/api/reset-password", data);
+      const result = await response.json();
+      toast({
+        title: "Password reset successful",
+        description: result.message,
+      });
       setActiveTab("login");
     } catch (error) {
-      console.error("Registration error:", error);
+      toast({
+        title: "Reset failed",
+        description: error instanceof Error ? error.message : "Failed to reset password",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -120,18 +203,11 @@ export default function AuthPage() {
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="register">Register</TabsTrigger>
+                <TabsTrigger value="forgot-password">Reset</TabsTrigger>
               </TabsList>
-
-              {registrationSuccess && (
-                <Alert className="mt-4">
-                  <AlertDescription>
-                    Registration successful! Please check your email to verify your account before logging in.
-                  </AlertDescription>
-                </Alert>
-              )}
 
               <TabsContent value="login">
                 <Form {...loginForm}>
@@ -183,16 +259,6 @@ export default function AuthPage() {
                       )}
                       Login
                     </Button>
-
-                    <div className="text-center mt-4">
-                      <button
-                        type="button"
-                        className="text-sm text-primary hover:underline"
-                        onClick={() => setActiveTab("forgot-password")}
-                      >
-                        Forgot password?
-                      </button>
-                    </div>
                   </form>
                 </Form>
               </TabsContent>
@@ -225,7 +291,7 @@ export default function AuthPage() {
                           <FormItem>
                             <FormLabel>Email</FormLabel>
                             <FormControl>
-                              <Input 
+                              <Input
                                 type="email"
                                 placeholder="Enter your BRAC University email"
                                 {...field}
@@ -313,6 +379,69 @@ export default function AuthPage() {
                 </Form>
               </TabsContent>
 
+              <TabsContent value="verify-email">
+                <Form {...verifyEmailForm}>
+                  <form
+                    onSubmit={verifyEmailForm.handleSubmit(onVerifyEmail)}
+                    className="space-y-4 mt-4"
+                  >
+                    <Alert>
+                      <AlertDescription>
+                        Please check your email for the verification code.
+                      </AlertDescription>
+                    </Alert>
+
+                    <FormField
+                      control={verifyEmailForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="email"
+                              value={registeredEmail || ''}
+                              disabled
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={verifyEmailForm.control}
+                      name="otp"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Verification Code</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter 6-digit code"
+                              maxLength={6}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={verifyingOTP}
+                    >
+                      {verifyingOTP && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Verify Email
+                    </Button>
+                  </form>
+                </Form>
+              </TabsContent>
+
               <TabsContent value="forgot-password">
                 <Form {...forgotPasswordForm}>
                   <form
@@ -345,16 +474,88 @@ export default function AuthPage() {
                       {isResettingPassword && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
-                      Send Reset Link
+                      Send Reset Code
                     </Button>
+                  </form>
+                </Form>
+              </TabsContent>
+
+              <TabsContent value="reset-password">
+                <Form {...resetPasswordForm}>
+                  <form
+                    onSubmit={resetPasswordForm.handleSubmit(onResetPassword)}
+                    className="space-y-4 mt-4"
+                  >
+                    <Alert>
+                      <AlertDescription>
+                        Please check your email for the password reset code.
+                      </AlertDescription>
+                    </Alert>
+
+                    <FormField
+                      control={resetPasswordForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="email"
+                              value={resetEmail || ''}
+                              disabled
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={resetPasswordForm.control}
+                      name="otp"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Reset Code</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter 6-digit code"
+                              maxLength={6}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={resetPasswordForm.control}
+                      name="newPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>New Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="Enter new password"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
                     <Button
-                      type="button"
-                      variant="ghost"
+                      type="submit"
                       className="w-full"
-                      onClick={() => setActiveTab("login")}
+                      disabled={isResettingPassword}
                     >
-                      Back to Login
+                      {isResettingPassword && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Reset Password
                     </Button>
                   </form>
                 </Form>

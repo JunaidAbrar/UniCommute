@@ -11,9 +11,10 @@ export const users = pgTable("users", {
   gender: text("gender").notNull(),
   avatar: text("avatar"),
   isVerified: boolean("is_verified").notNull().default(false),
-  verificationToken: text("verification_token"),
-  resetPasswordToken: text("reset_password_token"),
-  resetPasswordExpires: timestamp("reset_password_expires", { withTimezone: true, mode: 'string' }),
+  verificationOTP: text("verification_otp"),
+  verificationOTPExpires: timestamp("verification_otp_expires", { withTimezone: true, mode: 'string' }),
+  resetPasswordOTP: text("reset_password_otp"),
+  resetPasswordOTPExpires: timestamp("reset_password_otp_expires", { withTimezone: true, mode: 'string' }),
 });
 
 export const transportType = z.enum(["PERSONAL", "UBER", "CNG"]);

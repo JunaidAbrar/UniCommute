@@ -17,9 +17,10 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  verifyEmail(token: string): Promise<User | undefined>;
-  setResetToken(userId: number, token: string, expires: Date): Promise<void>;
-  getUserByResetToken(token: string): Promise<User | undefined>;
+  setVerificationOTP(userId: number, otp: string, expires: Date): Promise<void>;
+  verifyOTP(email: string, otp: string): Promise<User | undefined>;
+  setResetPasswordOTP(userId: number, otp: string, expires: Date): Promise<void>;
+  verifyResetPasswordOTP(email: string, otp: string): Promise<User | undefined>;
   updatePassword(userId: number, newPassword: string): Promise<void>;
 
   // Ride Operations
@@ -40,7 +41,7 @@ export interface IStorage {
   getMessagesByRide(rideId: number): Promise<Message[]>;
 }
 
-// WebSocket types remain unchanged
+// WebSocket types
 export interface WebSocketClient extends WebSocket {
   userId?: number;
   rideId?: number;

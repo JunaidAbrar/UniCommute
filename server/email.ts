@@ -17,6 +17,10 @@ export async function generateToken(length = 32): Promise<string> {
   return cryptoRandomString({ length, type: 'url-safe' });
 }
 
+export async function generateOTP(length = 6): Promise<string> {
+  return cryptoRandomString({ length, type: 'numeric' });
+}
+
 export async function sendVerificationEmail(user: User, token: string) {
   const verificationLink = `${process.env.APP_URL}/verify-email?token=${token}`;
   
@@ -36,6 +40,23 @@ export async function sendVerificationEmail(user: User, token: string) {
   return transporter.sendMail(mailOptions);
 }
 
+export async function sendVerificationOTP(user: User, otp: string) {
+  const mailOptions = {
+    from: process.env.SMTP_FROM || 'no-reply@unicommute.com',
+    to: user.email,
+    subject: 'Verify your UniCommute account',
+    html: `
+      <h1>Welcome to UniCommute!</h1>
+      <p>Your verification code is:</p>
+      <h2 style="font-size: 24px; padding: 10px; background: #f5f5f5; text-align: center; letter-spacing: 5px;">${otp}</h2>
+      <p>This code will expire in 15 minutes.</p>
+      <p>If you didn't create an account with us, please ignore this email.</p>
+    `
+  };
+
+  return transporter.sendMail(mailOptions);
+}
+
 export async function sendPasswordResetEmail(user: User, token: string) {
   const resetLink = `${process.env.APP_URL}/reset-password?token=${token}`;
   
@@ -48,6 +69,23 @@ export async function sendPasswordResetEmail(user: User, token: string) {
       <p>You requested to reset your password. Click the link below to create a new password:</p>
       <a href="${resetLink}">${resetLink}</a>
       <p>This link will expire in 1 hour.</p>
+      <p>If you didn't request a password reset, please ignore this email.</p>
+    `
+  };
+
+  return transporter.sendMail(mailOptions);
+}
+
+export async function sendPasswordResetOTP(user: User, otp: string) {
+  const mailOptions = {
+    from: process.env.SMTP_FROM || 'no-reply@unicommute.com',
+    to: user.email,
+    subject: 'Reset your UniCommute password',
+    html: `
+      <h1>Password Reset Request</h1>
+      <p>Your password reset code is:</p>
+      <h2 style="font-size: 24px; padding: 10px; background: #f5f5f5; text-align: center; letter-spacing: 5px;">${otp}</h2>
+      <p>This code will expire in 15 minutes.</p>
       <p>If you didn't request a password reset, please ignore this email.</p>
     `
   };

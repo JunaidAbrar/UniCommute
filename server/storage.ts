@@ -96,13 +96,76 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async setVerificationOTP(userId: number, otp: string, expires: Date): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        verificationOTP: otp,
+        verificationOTPExpires: expires.toISOString()
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async verifyOTP(email: string, otp: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.email, email),
+          eq(users.verificationOTP, otp),
+          eq(users.isVerified, false),
+          sql`${users.verificationOTPExpires} > NOW()`
+        )
+      );
+
+    if (!user) return undefined;
+
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        isVerified: true,
+        verificationOTP: null,
+        verificationOTPExpires: null
+      })
+      .where(eq(users.id, user.id))
+      .returning();
+
+    return updatedUser;
+  }
+
+  async setResetPasswordOTP(userId: number, otp: string, expires: Date): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        resetPasswordOTP: otp,
+        resetPasswordOTPExpires: expires.toISOString()
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async verifyResetPasswordOTP(email: string, otp: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.email, email),
+          eq(users.resetPasswordOTP, otp),
+          sql`${users.resetPasswordOTPExpires} > NOW()`
+        )
+      );
+
+    return user;
+  }
+
   async updatePassword(userId: number, newPassword: string): Promise<void> {
     await db
       .update(users)
       .set({
         password: newPassword,
-        resetPasswordToken: null,
-        resetPasswordExpires: null
+        resetPasswordOTP: null,
+        resetPasswordOTPExpires: null
       })
       .where(eq(users.id, userId));
   }
@@ -398,7 +461,7 @@ export class DatabaseStorage implements IStorage {
 
     return messagesWithUsers;
   }
-  async getArchivedRides(userId: number): Promise<RideWithDetails[]> {
+    async getArchivedRides(userId: number): Promise<RideWithDetails[]> {
     const rides = await db
       .select()
       .from(ridesTable)
