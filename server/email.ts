@@ -10,18 +10,6 @@ const transporter = nodemailer.createTransport({
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS
-  },
-  // Add debug logging
-  logger: true,
-  debug: true
-});
-
-// Verify transporter connection on startup
-transporter.verify(function(error, success) {
-  if (error) {
-    console.error('SMTP Connection Error:', error);
-  } else {
-    console.log('SMTP Server is ready to send messages');
   }
 });
 
@@ -35,7 +23,7 @@ export async function generateOTP(length = 6): Promise<string> {
 
 export async function sendVerificationEmail(user: User, token: string) {
   const verificationLink = `${process.env.APP_URL}/verify-email?token=${token}`;
-
+  
   const mailOptions = {
     from: process.env.SMTP_FROM || 'no-reply@unicommute.com',
     to: user.email,
@@ -49,14 +37,7 @@ export async function sendVerificationEmail(user: User, token: string) {
     `
   };
 
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Verification email sent:', info.messageId);
-    return info;
-  } catch (error) {
-    console.error('Error sending verification email:', error);
-    throw error;
-  }
+  return transporter.sendMail(mailOptions);
 }
 
 export async function sendVerificationOTP(user: User, otp: string) {
@@ -73,14 +54,7 @@ export async function sendVerificationOTP(user: User, otp: string) {
     `
   };
 
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Verification OTP email sent:', info.messageId);
-    return info;
-  } catch (error) {
-    console.error('Error sending verification OTP:', error);
-    throw error;
-  }
+  return transporter.sendMail(mailOptions);
 }
 
 export async function sendPasswordResetEmail(user: User, token: string) {
@@ -99,19 +73,10 @@ export async function sendPasswordResetEmail(user: User, token: string) {
     `
   };
 
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Password reset email sent:', info.messageId);
-    return info;
-  } catch (error) {
-    console.error('Error sending password reset email:', error);
-    throw error;
-  }
+  return transporter.sendMail(mailOptions);
 }
 
 export async function sendPasswordResetOTP(user: User, otp: string) {
-  console.log('Attempting to send password reset OTP to:', user.email);
-
   const mailOptions = {
     from: process.env.SMTP_FROM || 'no-reply@unicommute.com',
     to: user.email,
@@ -125,12 +90,5 @@ export async function sendPasswordResetOTP(user: User, otp: string) {
     `
   };
 
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Password reset OTP email sent:', info.messageId);
-    return info;
-  } catch (error) {
-    console.error('Error sending password reset OTP:', error);
-    throw error;
-  }
+  return transporter.sendMail(mailOptions);
 }
