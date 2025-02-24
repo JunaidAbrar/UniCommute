@@ -119,9 +119,9 @@ export function setupAuth(app: Express) {
     try {
       const parseResult = insertUserSchema.safeParse(req.body);
       if (!parseResult.success) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Invalid registration data",
-          errors: parseResult.error.errors 
+          errors: parseResult.error.errors
         });
       }
 
@@ -142,7 +142,7 @@ export function setupAuth(app: Express) {
       await storage.setVerificationOTP(user.id, otp, otpExpires);
       await sendVerificationOTP(user, otp);
 
-      res.status(201).json({ 
+      res.status(201).json({
         message: "Registration successful. Please check your email for verification code.",
         email: user.email
       });
@@ -188,15 +188,24 @@ export function setupAuth(app: Express) {
         });
       }
 
-      const otp = await generateOTP();
-      const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      try {
+        const otp = await generateOTP();
+        const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+        await storage.setResetPasswordOTP(user.id, otp, otpExpires);
+        await sendPasswordResetOTP(user, otp);
 
-      await storage.setResetPasswordOTP(user.id, otp, otpExpires);
-      await sendPasswordResetOTP(user, otp);
-
-      res.status(200).json({
-        message: "If an account exists with this email, you will receive a password reset code."
-      });
+        res.status(200).json({
+          message: "If an account exists with this email, you will receive a password reset code."
+        });
+      } catch (error: any) {
+        if (error.message === "Too many reset attempts. Please try again later.") {
+          return res.status(429).json({
+            message: error.message,
+            error: "RATE_LIMITED"
+          });
+        }
+        throw error;
+      }
     } catch (error) {
       console.error('Forgot password error:', error);
       res.status(500).json({

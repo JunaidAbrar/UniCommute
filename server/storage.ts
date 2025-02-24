@@ -135,11 +135,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   async setResetPasswordOTP(userId: number, otp: string, expires: Date): Promise<void> {
+    // Reset attempts cooldown period (15 minutes)
+    const cooldownPeriod = 15 * 60 * 1000; // 15 minutes in milliseconds
+
+    const user = await this.getUser(userId);
+    if (!user) throw new Error("User not found");
+
+    // Check if user is in cooldown period
+    if (user.lastResetAttempt) {
+      const lastAttempt = new Date(user.lastResetAttempt);
+      const timeSinceLastAttempt = Date.now() - lastAttempt.getTime();
+
+      if (timeSinceLastAttempt < cooldownPeriod && user.resetAttempts >= 3) {
+        throw new Error("Too many reset attempts. Please try again later.");
+      }
+    }
+
+    // If cooldown period has passed, reset the attempts counter
+    const shouldResetAttempts = !user.lastResetAttempt ||
+      (Date.now() - new Date(user.lastResetAttempt).getTime() >= cooldownPeriod);
+
     await db
       .update(users)
       .set({
         resetPasswordOTP: otp,
-        resetPasswordOTPExpires: expires.toISOString()
+        resetPasswordOTPExpires: expires.toISOString(),
+        resetAttempts: shouldResetAttempts ? 1 : sql`${users.resetAttempts} + 1`,
+        lastResetAttempt: new Date().toISOString()
       })
       .where(eq(users.id, userId));
   }
@@ -165,7 +187,10 @@ export class DatabaseStorage implements IStorage {
       .set({
         password: newPassword,
         resetPasswordOTP: null,
-        resetPasswordOTPExpires: null
+        resetPasswordOTPExpires: null,
+        resetAttempts: 0,
+        lastResetAttempt: null,
+        tokenVersion: sql`${users.tokenVersion} + 1` // Increment token version to invalidate all sessions
       })
       .where(eq(users.id, userId));
   }
