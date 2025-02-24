@@ -9,6 +9,15 @@ export async function setupRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
+  // Set up periodic check for rides that need to be archived (every 5 minutes)
+  setInterval(async () => {
+    try {
+      await storage.autoArchiveExpiredRides();
+    } catch (error) {
+      console.error("Error auto-archiving rides:", error);
+    }
+  }, 5 * 60 * 1000);
+
   // Rides
   app.post("/api/rides", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -40,6 +49,7 @@ export async function setupRoutes(app: Express): Promise<Server> {
     res.json(rides);
   });
 
+  // Modified delete route to handle archiving
   app.delete("/api/rides/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -47,7 +57,7 @@ export async function setupRoutes(app: Express): Promise<Server> {
       await storage.deleteRide(parseInt(req.params.id), req.user.id);
       res.sendStatus(200);
     } catch (error) {
-      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to delete ride" });
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to archive ride" });
     }
   });
 
@@ -167,6 +177,18 @@ export async function setupRoutes(app: Express): Promise<Server> {
       res.status(400).json({ 
         message: error instanceof Error ? error.message : "Failed to remove member" 
       });
+    }
+  });
+
+  // Add new route to get archived rides for a user
+  app.get("/api/rides/archived", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    try {
+      const archivedRides = await storage.getArchivedRides(req.user.id);
+      res.json(archivedRides);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Failed to fetch archived rides" });
     }
   });
 

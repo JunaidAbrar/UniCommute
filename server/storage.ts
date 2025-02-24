@@ -11,7 +11,7 @@ import {
   Message, InsertMessage
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, not, sql } from "drizzle-orm";
+import { eq, and, not, sql, lt } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -132,12 +132,60 @@ export class DatabaseStorage implements IStorage {
     return { ...ride, host };
   }
 
-  // Update the getActiveRides method
+  async archiveRide(rideId: number): Promise<Ride> {
+    const [archivedRide] = await db
+      .update(ridesTable)
+      .set({
+        isActive: false,
+        isArchived: true,
+        archivedAt: new Date().toISOString()
+      })
+      .where(eq(ridesTable.id, rideId))
+      .returning();
+
+    if (!archivedRide) throw new Error("Ride not found");
+    return archivedRide;
+  }
+
+  async deleteRide(rideId: number, userId: number): Promise<void> {
+    const ride = await this.getRide(rideId);
+    if (!ride) throw new Error("Ride not found");
+    if (ride.hostId !== userId) throw new Error("Unauthorized");
+
+    // Archive instead of delete
+    await this.archiveRide(rideId);
+  }
+
+  async autoArchiveExpiredRides(): Promise<void> {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+    await db
+      .update(ridesTable)
+      .set({
+        isActive: false,
+        isArchived: true,
+        archivedAt: new Date().toISOString()
+      })
+      .where(
+        and(
+          lt(ridesTable.departureTime, oneHourAgo),
+          eq(ridesTable.isActive, true),
+          eq(ridesTable.isArchived, false)
+        )
+      );
+  }
+
+
   async getActiveRides(): Promise<RideWithDetails[]> {
     const rides = await db
       .select()
       .from(ridesTable)
-      .where(eq(ridesTable.isActive, true))
+      .where(
+        and(
+          eq(ridesTable.isActive, true),
+          eq(ridesTable.isArchived, false)
+        )
+      )
       .orderBy(ridesTable.departureTime);
 
     const ridesWithDetails = await Promise.all(
@@ -145,7 +193,6 @@ export class DatabaseStorage implements IStorage {
         const host = await this.getUser(ride.hostId);
         if (!host) throw new Error(`Host not found for ride ${ride.id}`);
 
-        // Fetch all participant details
         const participantUsers = await Promise.all(
           ride.participants.map(async (id) => {
             const user = await this.getUser(id);
@@ -154,7 +201,6 @@ export class DatabaseStorage implements IStorage {
           })
         );
 
-        // Create a ride with details object matching our extended type
         const rideWithDetails: RideWithDetails = {
           id: ride.id,
           hostId: ride.hostId,
@@ -166,7 +212,7 @@ export class DatabaseStorage implements IStorage {
           seatsAvailable: ride.seatsAvailable,
           femaleOnly: ride.femaleOnly,
           isActive: ride.isActive,
-          estimatedFare: ride.estimatedFare, // Added estimatedFare
+          estimatedFare: ride.estimatedFare,
           host: {
             username: host.username,
             university: host.university
@@ -179,29 +225,6 @@ export class DatabaseStorage implements IStorage {
     );
 
     return ridesWithDetails;
-  }
-
-  async deleteRide(rideId: number, userId: number): Promise<void> {
-    const ride = await this.getRide(rideId);
-    if (!ride) throw new Error("Ride not found");
-    if (ride.hostId !== userId) throw new Error("Unauthorized");
-
-    // Different logic based on transport type
-    if (ride.transportType === "PERSONAL") {
-      // For personal vehicles, simply delete the ride
-      await db.delete(ridesTable).where(eq(ridesTable.id, rideId));
-    } else {
-      // For CNG/UBER rides, handle ownership transfer if there are other participants
-      const otherParticipants = ride.participants.filter(id => id !== userId);
-
-      if (otherParticipants.length > 0) {
-        // Transfer ownership to the first remaining participant
-        await this.transferRideOwnership(rideId, otherParticipants[0]);
-      } else {
-        // If no other participants, delete the ride
-        await db.delete(ridesTable).where(eq(ridesTable.id, rideId));
-      }
-    }
   }
 
   async transferRideOwnership(rideId: number, newHostId: number): Promise<Ride> {
@@ -318,6 +341,46 @@ export class DatabaseStorage implements IStorage {
       .orderBy(messages.timestamp);
 
     return messagesWithUsers;
+  }
+  async getArchivedRides(userId: number): Promise<RideWithDetails[]> {
+    const rides = await db
+      .select()
+      .from(ridesTable)
+      .where(
+        and(
+          eq(ridesTable.isArchived, true),
+          sql`${ridesTable.participants} @> array[${userId}]::int[]`
+        )
+      )
+      .orderBy(ridesTable.departureTime);
+
+    const ridesWithDetails = await Promise.all(
+      rides.map(async (ride) => {
+        const host = await this.getUser(ride.hostId);
+        if (!host) throw new Error(`Host not found for ride ${ride.id}`);
+
+        const participantUsers = await Promise.all(
+          ride.participants.map(async (id) => {
+            const user = await this.getUser(id);
+            if (!user) throw new Error(`Participant not found: ${id}`);
+            return user;
+          })
+        );
+
+        const rideWithDetails: RideWithDetails = {
+          ...ride,
+          host: {
+            username: host.username,
+            university: host.university
+          },
+          participants: participantUsers
+        };
+
+        return rideWithDetails;
+      })
+    );
+
+    return ridesWithDetails;
   }
 }
 

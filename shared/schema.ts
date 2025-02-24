@@ -25,18 +25,21 @@ export const rides = pgTable(
     origin: text("origin").notNull(),
     destination: text("destination").notNull(),
     stopPoints: text("stop_points").array().notNull().default([]),
-    departureTime: timestamp("departure_time", { mode: 'string' }).notNull(),
+    departureTime: timestamp("departure_time", { withTimezone: true, mode: 'string' }).notNull(),
     transportType: text("transport_type").notNull(),
     seatsAvailable: integer("seats_available").notNull(),
     isActive: boolean("is_active").notNull().default(true),
     participants: integer("participants").array().notNull().default([]),
     femaleOnly: boolean("female_only").notNull().default(false),
-    estimatedFare: real("estimated_fare").notNull().default(0)
+    estimatedFare: integer("estimated_fare").notNull().default(0),
+    isArchived: boolean("is_archived").notNull().default(false),
+    archivedAt: timestamp("archived_at", { withTimezone: true, mode: 'string' }),
   },
   (table) => ({
     hostIdIdx: index("host_id_idx").on(table.hostId),
     departureTimeIdx: index("departure_time_idx").on(table.departureTime),
-    isActiveIdx: index("is_active_idx").on(table.isActive)
+    isActiveIdx: index("is_active_idx").on(table.isActive),
+    isArchivedIdx: index("is_archived_idx").on(table.isArchived)
   })
 );
 
@@ -51,7 +54,7 @@ export const requests = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }), 
     status: text("status").notNull(),
-    createdAt: timestamp("created_at", { mode: 'string' }).notNull().defaultNow()
+    createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).notNull().defaultNow()
   },
   (table) => ({
     rideIdIdx: index("requests_ride_id_idx").on(table.rideId),
@@ -70,7 +73,7 @@ export const messages = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }), 
     content: text("content").notNull(),
-    timestamp: timestamp("timestamp", { mode: 'string' }).notNull().defaultNow(),
+    timestamp: timestamp("timestamp", { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
     type: text("type").notNull().default('text'),
     attachment: text("attachment")
   },

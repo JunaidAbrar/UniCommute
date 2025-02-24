@@ -22,6 +22,9 @@ export interface IStorage {
   getRide(id: number): Promise<Ride | undefined>;
   getRideWithHost(id: number): Promise<(Ride & { host: User }) | undefined>;
   getActiveRides(): Promise<RideWithDetails[]>;
+  getArchivedRides(userId: number): Promise<RideWithDetails[]>;
+  archiveRide(rideId: number): Promise<Ride>;
+  autoArchiveExpiredRides(): Promise<void>;
 
   // Request Operations
   createRequest(userId: number, request: InsertRequest): Promise<Request>;
@@ -32,6 +35,7 @@ export interface IStorage {
   getMessagesByRide(rideId: number): Promise<Message[]>;
 }
 
+// WebSocket types remain unchanged
 export interface WebSocketClient extends WebSocket {
   userId?: number;
   rideId?: number;
