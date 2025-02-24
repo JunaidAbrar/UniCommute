@@ -7,7 +7,7 @@ import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser, insertUserSchema } from "@shared/schema";
 import { generateToken, sendVerificationEmail, sendPasswordResetEmail } from "./email";
-import { generateOTP, sendVerificationOTP } from "./email";
+import { generateOTP, sendVerificationOTP, sendPasswordResetOTP } from "./email";
 
 declare global {
   namespace Express {
@@ -67,17 +67,11 @@ export function setupAuth(app: Express) {
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    },
-    rolling: true // Refresh session with each request
+    }
   };
 
-  // Trust first proxy
   app.set("trust proxy", 1);
-
-  // Session middleware
   app.use(session(sessionSettings));
-
-  // Initialize Passport and restore authentication state from session
   app.use(passport.initialize());
   app.use(passport.session());
 
@@ -108,10 +102,7 @@ export function setupAuth(app: Express) {
     }),
   );
 
-  passport.serializeUser((user, done) => {
-    done(null, user.id);
-  });
-
+  passport.serializeUser((user, done) => done(null, user.id));
   passport.deserializeUser(async (id: number, done) => {
     try {
       const user = await storage.getUser(id);
@@ -190,28 +181,46 @@ export function setupAuth(app: Express) {
         return res.status(404).json({ message: "User not found" });
       }
 
-      const token = await generateToken();
-      const tokenExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      const otp = await generateOTP();
+      const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-      await storage.setResetToken(user.id, token, tokenExpires);
-      await sendPasswordResetEmail(user, token);
+      await storage.setResetPasswordOTP(user.id, otp, otpExpires);
+      await sendPasswordResetOTP(user, otp);
 
-      res.status(200).json({ message: "Password reset link sent to your email" });
+      res.status(200).json({ message: "Password reset code sent to your email" });
     } catch (error) {
       res.status(500).json({ message: "Error processing password reset request" });
     }
   });
 
-  app.post("/api/reset-password", async (req, res) => {
-    const { token, newPassword } = req.body;
-    if (!token || !newPassword) {
-      return res.status(400).json({ message: "Reset token and new password are required" });
+  app.post("/api/verify-reset-code", async (req, res) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ message: "Email and reset code are required" });
     }
 
     try {
-      const user = await storage.getUserByResetToken(token);
+      const user = await storage.verifyResetPasswordOTP(email, otp);
       if (!user) {
-        return res.status(400).json({ message: "Invalid or expired reset token" });
+        return res.status(400).json({ message: "Invalid or expired reset code" });
+      }
+
+      res.status(200).json({ message: "Reset code verified successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Error verifying reset code" });
+    }
+  });
+
+  app.post("/api/reset-password", async (req, res) => {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: "Email, reset code, and new password are required" });
+    }
+
+    try {
+      const user = await storage.verifyResetPasswordOTP(email, otp);
+      if (!user) {
+        return res.status(400).json({ message: "Invalid or expired reset code" });
       }
 
       const hashedPassword = await hashPassword(newPassword);
