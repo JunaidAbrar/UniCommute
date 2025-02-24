@@ -8,6 +8,7 @@ import { storage } from "./storage";
 import { User as SelectUser, insertUserSchema } from "@shared/schema";
 import { generateToken, sendVerificationEmail, sendPasswordResetEmail } from "./email";
 import { generateOTP, sendVerificationOTP, sendPasswordResetOTP } from "./email";
+import { setupWebSocket } from "./websocket";
 
 declare global {
   namespace Express {
@@ -28,31 +29,6 @@ async function comparePasswords(supplied: string, stored: string) {
   const hashedBuf = Buffer.from(hashed, "hex");
   const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
   return timingSafeEqual(hashedBuf, suppliedBuf);
-}
-
-// Track failed login attempts
-const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOGIN_TIMEOUT = 15 * 60 * 1000; // 15 minutes
-
-function checkLoginAttempts(username: string): boolean {
-  const attempts = loginAttempts.get(username);
-  if (!attempts) return true;
-
-  const now = Date.now();
-  if (now - attempts.lastAttempt > LOGIN_TIMEOUT) {
-    loginAttempts.delete(username);
-    return true;
-  }
-
-  return attempts.count < MAX_LOGIN_ATTEMPTS;
-}
-
-function recordLoginAttempt(username: string) {
-  const attempts = loginAttempts.get(username) || { count: 0, lastAttempt: 0 };
-  attempts.count += 1;
-  attempts.lastAttempt = Date.now();
-  loginAttempts.set(username, attempts);
 }
 
 export function setupAuth(app: Express) {
@@ -78,14 +54,8 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
-        // Check for too many login attempts
-        if (!checkLoginAttempts(username)) {
-          return done(null, false, { message: "Too many login attempts. Please try again later." });
-        }
-
         const user = await storage.getUserByUsername(username);
         if (!user || !(await comparePasswords(password, user.password))) {
-          recordLoginAttempt(username);
           return done(null, false, { message: "Invalid username or password" });
         }
 
@@ -93,8 +63,6 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Please verify your email before logging in" });
         }
 
-        // Reset login attempts on successful login
-        loginAttempts.delete(username);
         return done(null, user);
       } catch (error) {
         return done(error);
@@ -193,24 +161,6 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/verify-reset-code", async (req, res) => {
-    const { email, otp } = req.body;
-    if (!email || !otp) {
-      return res.status(400).json({ message: "Email and reset code are required" });
-    }
-
-    try {
-      const user = await storage.verifyResetPasswordOTP(email, otp);
-      if (!user) {
-        return res.status(400).json({ message: "Invalid or expired reset code" });
-      }
-
-      res.status(200).json({ message: "Reset code verified successfully" });
-    } catch (error) {
-      res.status(500).json({ message: "Error verifying reset code" });
-    }
-  });
-
   app.post("/api/reset-password", async (req, res) => {
     const { email, otp, newPassword } = req.body;
     if (!email || !otp || !newPassword) {
@@ -256,4 +206,37 @@ export function setupAuth(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.json(req.user);
   });
+
+  setupWebSocket(app); //Moved setupWebSocket here
+
+}
+
+// Add WebSocket authentication middleware
+export function authenticateWebSocket(socket: any, request: any): Promise<number | undefined> {
+  return new Promise((resolve) => {
+    if (!request.headers.cookie) {
+      resolve(undefined);
+      return;
+    }
+
+    const sid = getCookie(request.headers.cookie, 'connect.sid');
+    if (!sid) {
+      resolve(undefined);
+      return;
+    }
+
+    storage.sessionStore.get(sid, (err, session) => {
+      if (err || !session?.passport?.user) {
+        resolve(undefined);
+        return;
+      }
+
+      resolve(session.passport.user);
+    });
+  });
+}
+
+function getCookie(cookieString: string, name: string): string | undefined {
+  const match = cookieString.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? match[2] : undefined;
 }

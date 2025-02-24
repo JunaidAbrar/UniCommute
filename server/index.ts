@@ -11,50 +11,20 @@ import { log } from "./vite";
 const app = express();
 const httpServer = createServer(app);
 
+// Store the HTTP server instance in the Express app
+app.set('server', httpServer);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
-// Set up WebSocket server
-const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
-});
 
 // Set up authentication before routes and websocket
 setupAuth(app);
 
-// Set up WebSocket after auth but before routes
-setupWebSocket(wss, app);
-
 // Set up routes
 setupRoutes(app);
+
+// Setup WebSocket after auth and routes
+setupWebSocket(app);
 
 // importantly only setup vite in development and after
 // setting up all the other routes so the catch-all route
