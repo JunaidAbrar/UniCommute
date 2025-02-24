@@ -73,6 +73,45 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 
 // ALWAYS serve the app on port 5000
 const port = 5000;
-httpServer.listen(port, '0.0.0.0', () => {
-  log(`Server running on port ${port}`);
+const maxRetries = 3;
+let retryCount = 0;
+
+function startServer() {
+  httpServer.listen(port, '0.0.0.0', () => {
+    log(`Server running on port ${port}`);
+  }).on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      log(`Port ${port} is in use`);
+      if (retryCount < maxRetries) {
+        retryCount++;
+        log(`Retrying in 1 second... (Attempt ${retryCount}/${maxRetries})`);
+        setTimeout(startServer, 1000);
+      } else {
+        log('Max retry attempts reached. Could not start server.');
+        process.exit(1);
+      }
+    } else {
+      log(`Error starting server: ${error.message}`);
+      process.exit(1);
+    }
+  });
+}
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  log('SIGTERM received. Shutting down gracefully...');
+  httpServer.close(() => {
+    log('Server closed');
+    process.exit(0);
+  });
 });
+
+process.on('SIGINT', () => {
+  log('SIGINT received. Shutting down gracefully...');
+  httpServer.close(() => {
+    log('Server closed');
+    process.exit(0);
+  });
+});
+
+startServer();

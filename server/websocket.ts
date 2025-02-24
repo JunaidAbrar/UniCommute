@@ -54,6 +54,9 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
       // Initialize client info
       ws.userId = userId;
 
+      // Send initial connection success message
+      ws.send(JSON.stringify({ type: 'connected', userId }));
+
       ws.on('message', async (message: string) => {
         try {
           const data = JSON.parse(message);
@@ -100,6 +103,19 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
       }
     }
   });
+
+  // Add heartbeat to keep connections alive
+  const interval = setInterval(() => {
+    wss.clients.forEach((ws: WebSocket) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.ping();
+      }
+    });
+  }, 30000);
+
+  wss.on('close', () => {
+    clearInterval(interval);
+  });
 }
 
 async function handleJoin(ws: WebSocketClient, data: any, userId: number) {
@@ -131,9 +147,16 @@ async function handleJoin(ws: WebSocketClient, data: any, userId: number) {
 
     console.log(`User ${userId} joined ride ${numericRideId}`);
 
-    // Send confirmation
+    // Send confirmation and any existing messages
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'joined', rideId: numericRideId }));
+      // Get existing messages for this ride
+      const messages = await storage.getMessagesByRide(numericRideId);
+
+      ws.send(JSON.stringify({ 
+        type: 'joined', 
+        rideId: numericRideId,
+        messages: messages 
+      }));
     }
   } catch (error) {
     console.error('Error in handleJoin:', error);
@@ -157,21 +180,15 @@ async function handleMessage(ws: WebSocketClient, data: any, userId: number) {
       throw new Error('User not found');
     }
 
-    // Ensure we're using the correct username field from the user object
+    // Create message object
     const message: ChatMessage = {
       id: crypto.randomUUID(),
       rideId: ws.rideId,
       userId: userId,
-      username: user.username || 'Anonymous', // Fallback to Anonymous if username is not available
+      username: user.username,
       content: data.content,
       timestamp: new Date()
     };
-
-    console.log('Broadcasting message with user details:', {
-      userId: message.userId,
-      username: message.username,
-      content: message.content
-    });
 
     // Store in database first
     await storage.createMessage(userId, {
