@@ -7,15 +7,35 @@ import { setupRoutes } from './routes';
 import { setupAuth } from './auth';
 import { type Request, Response, NextFunction } from "express";
 import { log } from "./vite";
+import cors from 'cors';
 
 const app = express();
 const httpServer = createServer(app);
+
+// Configure CORS before any routes
+app.use(cors({
+  origin: true, // Allow all origins in development
+  credentials: true, // Allow credentials (cookies)
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+}));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Set up WebSocket server
-const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+const wss = new WebSocketServer({ 
+  server: httpServer, 
+  path: '/ws',
+  verifyClient: (info, cb) => {
+    // Allow WebSocket upgrades with credentials
+    if (info.req.headers.cookie) {
+      cb(true);
+    } else {
+      cb(false, 401, 'Unauthorized');
+    }
+  }
+});
 
 app.use((req, res, next) => {
   const start = Date.now();

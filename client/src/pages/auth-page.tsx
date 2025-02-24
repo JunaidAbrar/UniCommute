@@ -57,7 +57,7 @@ export default function AuthPage() {
   const [activeTab, setActiveTab] = useState("login");
   const [verifyingOTP, setVerifyingOTP] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
-  const [verificationMode, setVerificationMode] = useState<'email'>('email');
+  const [verificationMode, setVerificationMode] = useState<'email' | 'reset'>('email');
 
   const loginForm = useForm({
     resolver: zodResolver(loginSchema),
@@ -199,11 +199,10 @@ export default function AuthPage() {
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="register">Register</TabsTrigger>
                 <TabsTrigger value="verify">Verify</TabsTrigger>
-                <TabsTrigger value="reset">Reset</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
@@ -246,20 +245,9 @@ export default function AuthPage() {
                       )}
                     />
 
-                    <div className="flex items-center justify-between">
-                      <Button
-                        type="button"
-                        variant="link"
-                        className="px-0"
-                        onClick={() => setActiveTab("reset")}
-                      >
-                        Forgot password?
-                      </Button>
-                    </div>
-
                     <Button
                       type="submit"
-                      className="w-full mt-6"
+                      className="w-full"
                       disabled={loginMutation.isPending}
                     >
                       {loginMutation.isPending && (
@@ -267,59 +255,20 @@ export default function AuthPage() {
                       )}
                       Login
                     </Button>
-                  </form>
-                </Form>
-              </TabsContent>
 
-              <TabsContent value="reset">
-                <Form {...forgotPasswordForm}>
-                  <form
-                    onSubmit={forgotPasswordForm.handleSubmit(onForgotPassword)}
-                    className="space-y-4 mt-4"
-                  >
-                    <Alert>
-                      <AlertDescription>
-                        Enter your email address and we'll send you a link to reset your password.
-                      </AlertDescription>
-                    </Alert>
-
-                    <FormField
-                      control={forgotPasswordForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="email"
-                              placeholder="Enter your email"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={isResettingPassword}
-                    >
-                      {isResettingPassword && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Send Reset Link
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="w-full"
-                      onClick={() => setActiveTab("login")}
-                    >
-                      Back to Login
-                    </Button>
+                    <div className="text-center mt-2">
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="text-sm text-muted-foreground"
+                        onClick={() => {
+                          setActiveTab("verify");
+                          setVerificationMode('reset');
+                        }}
+                      >
+                        Forgot password?
+                      </Button>
+                    </div>
                   </form>
                 </Form>
               </TabsContent>
@@ -441,65 +390,118 @@ export default function AuthPage() {
               </TabsContent>
 
               <TabsContent value="verify">
-                <Form {...verifyEmailForm}>
-                  <form
-                    onSubmit={verifyEmailForm.handleSubmit(onVerifyEmail)}
-                    className="space-y-4 mt-4"
-                  >
-                    <Alert>
-                      <AlertDescription>
-                        Please check your email for the verification code.
-                      </AlertDescription>
-                    </Alert>
-
-                    <FormField
-                      control={verifyEmailForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="email"
-                              placeholder="Enter your email"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={verifyEmailForm.control}
-                      name="otp"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Verification Code</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter 6-digit code"
-                              maxLength={6}
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={verifyingOTP}
+                {verificationMode === 'email' ? (
+                  <Form {...verifyEmailForm}>
+                    <form
+                      onSubmit={verifyEmailForm.handleSubmit(onVerifyEmail)}
+                      className="space-y-4 mt-4"
                     >
-                      {verifyingOTP && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Verify Email
-                    </Button>
-                  </form>
-                </Form>
+                      <Alert>
+                        <AlertDescription>
+                          Please check your email for the verification code.
+                        </AlertDescription>
+                      </Alert>
+
+                      <FormField
+                        control={verifyEmailForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="email"
+                                placeholder="Enter your email"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={verifyEmailForm.control}
+                        name="otp"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Verification Code</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Enter 6-digit code"
+                                maxLength={6}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={verifyingOTP}
+                      >
+                        {verifyingOTP && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Verify Email
+                      </Button>
+                    </form>
+                  </Form>
+                ) : (
+                  <Form {...forgotPasswordForm}>
+                    <form
+                      onSubmit={forgotPasswordForm.handleSubmit(onForgotPassword)}
+                      className="space-y-4 mt-4"
+                    >
+                      <Alert>
+                        <AlertDescription>
+                          Enter your email address and we'll send you a link to reset your password.
+                        </AlertDescription>
+                      </Alert>
+
+                      <FormField
+                        control={forgotPasswordForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="email"
+                                placeholder="Enter your email"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={isResettingPassword}
+                      >
+                        {isResettingPassword && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Send Reset Link
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="w-full"
+                        onClick={() => setActiveTab("login")}
+                      >
+                        Back to Login
+                      </Button>
+                    </form>
+                  </Form>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>
