@@ -6,8 +6,8 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser, insertUserSchema } from "@shared/schema";
-import { generateToken, sendVerificationEmail, sendPasswordResetEmail } from "./email";
-import { generateOTP, sendVerificationOTP, sendPasswordResetOTP } from "./email";
+import { generateToken, sendVerificationEmail } from "./email";
+import { generateOTP, sendVerificationOTP } from "./email";
 
 declare global {
   namespace Express {
@@ -181,74 +181,6 @@ export function setupAuth(app: Express) {
       res.status(200).json({ message: "Email verified successfully. You can now log in." });
     } catch (error) {
       res.status(500).json({ message: "Error verifying email" });
-    }
-  });
-
-  app.post("/api/forgot-password", async (req, res) => {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
-    }
-
-    try {
-      const user = await storage.getUserByEmail(email);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      const otp = await generateOTP();
-      const otpExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-
-      await storage.setVerificationOTP(user.id, otp, otpExpires);
-      await sendPasswordResetOTP(user, otp);
-
-      console.log(`Password reset OTP sent to ${email}`); // Add logging
-      res.status(200).json({ message: "Password reset code sent to your email" });
-    } catch (error) {
-      console.error('Error in forgot-password:', error); // Add error logging
-      res.status(500).json({ message: "Error processing password reset request" });
-    }
-  });
-
-  app.post("/api/verify-reset-code", async (req, res) => {
-    const { email, otp } = req.body;
-    if (!email || !otp) {
-      return res.status(400).json({ message: "Email and reset code are required" });
-    }
-
-    try {
-      const user = await storage.verifyOTP(email, otp);
-      if (!user) {
-        return res.status(400).json({ message: "Invalid or expired reset code" });
-      }
-
-      res.status(200).json({ message: "Reset code verified successfully" });
-    } catch (error) {
-      res.status(500).json({ message: "Error verifying reset code" });
-    }
-  });
-
-  app.post("/api/reset-password", async (req, res) => {
-    const { email, otp, newPassword } = req.body;
-    if (!email || !otp || !newPassword) {
-      return res.status(400).json({ message: "Email, reset code, and new password are required" });
-    }
-
-    try {
-      const user = await storage.verifyOTP(email, otp);
-      if (!user) {
-        return res.status(400).json({ message: "Invalid or expired reset code" });
-      }
-
-      const hashedPassword = await hashPassword(newPassword);
-      await storage.updatePassword(user.id, hashedPassword);
-
-      // Clear all sessions for this user for security
-      await storage.clearUserSessions(user.id);
-
-      res.status(200).json({ message: "Password updated successfully" });
-    } catch (error) {
-      res.status(500).json({ message: "Error resetting password" });
     }
   });
 

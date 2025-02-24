@@ -19,8 +19,6 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   setVerificationOTP(userId: number, otp: string, expires: Date): Promise<void>;
   verifyOTP(email: string, otp: string): Promise<User | undefined>;
-  setResetPasswordOTP(userId: number, otp: string, expires: Date): Promise<void>;
-  verifyResetPasswordOTP(email: string, otp: string): Promise<User | undefined>;
   updatePassword(userId: number, newPassword: string): Promise<void>;
 
   // Ride Operations
@@ -41,10 +39,11 @@ export interface IStorage {
   getMessagesByRide(rideId: number): Promise<Message[]>;
 }
 
-// WebSocket types
+// WebSocket types with improved type safety
 export interface WebSocketClient extends WebSocket {
   userId?: number;
   rideId?: number;
+  isAlive: boolean; // Required for connection health check
 }
 
 export interface ChatRoom {

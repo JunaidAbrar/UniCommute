@@ -10,8 +10,12 @@ import { WebSocket } from 'ws';
 const rooms = new Map<string, ChatRoom>();
 
 export function setupWebSocket(wss: WebSocketServer, app: Express) {
-  wss.on('connection', async (ws: WebSocketClient, req: IncomingMessage) => {
+  wss.on('connection', async (ws: WebSocket, req: IncomingMessage) => {
     try {
+      // Cast ws to WebSocketClient and initialize properties
+      const client = ws as WebSocketClient;
+      client.isAlive = true;
+
       // Extract session ID from cookie
       const cookieHeader = req.headers.cookie || '';
       console.log('WebSocket connection attempt with cookie:', cookieHeader);
@@ -21,7 +25,7 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
 
       if (!sessionID) {
         console.log('WebSocket connection rejected: No session ID found');
-        ws.close(1008, 'No session ID found');
+        client.close(1008, 'No session ID found');
         return;
       }
 
@@ -45,13 +49,13 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
         });
       } catch (error) {
         console.error('Failed to retrieve session:', error);
-        ws.close(1008, 'Session retrieval failed');
+        client.close(1008, 'Session retrieval failed');
         return;
       }
 
       if (!sessionData || !sessionData.passport?.user) {
         console.log('Invalid session data:', sessionData);
-        ws.close(1008, 'Invalid session');
+        client.close(1008, 'Invalid session');
         return;
       }
 
@@ -59,39 +63,38 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
       console.log(`WebSocket client authenticated. UserID: ${userId}`);
 
       // Initialize client info
-      ws.userId = userId;
-      ws.isAlive = true;
+      client.userId = userId;
 
       // Setup ping-pong for connection health check
-      ws.on('pong', () => {
-        ws.isAlive = true;
+      client.on('pong', () => {
+        client.isAlive = true;
       });
 
       // Send initial connection success message
-      ws.send(JSON.stringify({ type: 'connected', userId }));
+      client.send(JSON.stringify({ type: 'connected', userId }));
 
-      ws.on('message', async (message: string) => {
+      client.on('message', async (message: string) => {
         try {
           const data = JSON.parse(message);
           console.log('Received message from user', userId, ':', data);
 
           switch (data.type) {
             case 'join':
-              await handleJoin(ws, data, userId);
+              await handleJoin(client, data, userId);
               break;
             case 'message':
-              await handleMessage(ws, data, userId);
+              await handleMessage(client, data, userId);
               break;
             case 'leave':
-              handleLeave(ws);
+              handleLeave(client);
               break;
             default:
               console.log('Unknown message type:', data.type);
           }
         } catch (error) {
           console.error('Error processing message:', error);
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ 
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ 
               type: 'error', 
               message: 'Failed to process message' 
             }));
@@ -99,36 +102,35 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
         }
       });
 
-      ws.on('close', () => {
+      client.on('close', () => {
         console.log(`Client disconnected. UserID: ${userId}`);
-        ws.isAlive = false;
-        handleLeave(ws);
+        client.isAlive = false;
+        handleLeave(client);
       });
 
-      ws.on('error', (error) => {
+      client.on('error', (error) => {
         console.error('WebSocket error:', error);
-        ws.isAlive = false;
-        handleLeave(ws);
+        client.isAlive = false;
+        handleLeave(client);
       });
 
     } catch (error) {
       console.error('WebSocket connection error:', error);
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close(1011, 'Internal server error');
-      }
+      ws.close(1011, 'Internal server error');
     }
   });
 
   // Enhanced heartbeat to keep connections alive and clean up dead connections
   const heartbeat = setInterval(() => {
-    wss.clients.forEach((ws: WebSocketClient) => {
-      if (ws.isAlive === false) {
-        console.log(`Terminating inactive connection for user ${ws.userId}`);
-        return ws.terminate();
+    wss.clients.forEach((ws: WebSocket) => {
+      const client = ws as WebSocketClient;
+      if (!client.isAlive) {
+        console.log(`Terminating inactive connection for user ${client.userId}`);
+        return client.terminate();
       }
 
-      ws.isAlive = false;
-      ws.ping();
+      client.isAlive = false;
+      client.ping();
     });
   }, 30000);
 
