@@ -66,52 +66,95 @@ if (app.get("env") === "development") {
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
-
   res.status(status).json({ message });
-  throw err;
+  console.error('Server error:', err);
 });
 
 // ALWAYS serve the app on port 5000
 const port = 5000;
-const maxRetries = 3;
-let retryCount = 0;
+let server: any = null;
 
-function startServer() {
-  httpServer.listen(port, '0.0.0.0', () => {
-    log(`Server running on port ${port}`);
-  }).on('error', (error: any) => {
-    if (error.code === 'EADDRINUSE') {
-      log(`Port ${port} is in use`);
-      if (retryCount < maxRetries) {
-        retryCount++;
-        log(`Retrying in 1 second... (Attempt ${retryCount}/${maxRetries})`);
-        setTimeout(startServer, 1000);
-      } else {
-        log('Max retry attempts reached. Could not start server.');
-        process.exit(1);
-      }
+function cleanupServer() {
+  return new Promise<void>((resolve) => {
+    if (server) {
+      log(`[PID:${process.pid}] Attempting to close existing server...`);
+      server.close((err?: Error) => {
+        if (err) {
+          log(`[PID:${process.pid}] Error closing server: ${err.message}`);
+        } else {
+          log(`[PID:${process.pid}] Server closed successfully`);
+        }
+        resolve();
+      });
+
+      // Force close after 3 seconds if graceful shutdown fails
+      setTimeout(() => {
+        log(`[PID:${process.pid}] Force closing server after timeout`);
+        resolve();
+      }, 3000);
     } else {
-      log(`Error starting server: ${error.message}`);
-      process.exit(1);
+      log(`[PID:${process.pid}] No server instance to cleanup`);
+      resolve();
     }
   });
 }
 
+async function startServer() {
+  try {
+    log(`[PID:${process.pid}] Starting server...`);
+
+    // Close existing server if any
+    await cleanupServer();
+
+    // Start new server
+    server = httpServer.listen(port, '0.0.0.0', () => {
+      log(`[PID:${process.pid}] Server running on port ${port}`);
+    });
+
+    server.on('error', async (error: any) => {
+      if (error.code === 'EADDRINUSE') {
+        log(`[PID:${process.pid}] Port ${port} is in use, attempting to close existing connections...`);
+        await cleanupServer();
+
+        // Add a small delay before retrying
+        setTimeout(() => {
+          log(`[PID:${process.pid}] Retrying server startup...`);
+          startServer();
+        }, 1000);
+      } else {
+        console.error(`[PID:${process.pid}] Server error:`, error);
+        process.exit(1);
+      }
+    });
+
+  } catch (error) {
+    console.error(`[PID:${process.pid}] Failed to start server:`, error);
+    process.exit(1);
+  }
+}
+
 // Handle graceful shutdown
-process.on('SIGTERM', () => {
-  log('SIGTERM received. Shutting down gracefully...');
-  httpServer.close(() => {
-    log('Server closed');
-    process.exit(0);
-  });
+process.on('SIGTERM', async () => {
+  log(`[PID:${process.pid}] SIGTERM received. Shutting down gracefully...`);
+  await cleanupServer();
+  process.exit(0);
 });
 
-process.on('SIGINT', () => {
-  log('SIGINT received. Shutting down gracefully...');
-  httpServer.close(() => {
-    log('Server closed');
-    process.exit(0);
-  });
+process.on('SIGINT', async () => {
+  log(`[PID:${process.pid}] SIGINT received. Shutting down gracefully...`);
+  await cleanupServer();
+  process.exit(0);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error(`[PID:${process.pid}] Uncaught Exception:`, error);
+  cleanupServer().then(() => process.exit(1));
+});
+
+process.on('unhandledRejection', (error) => {
+  console.error(`[PID:${process.pid}] Unhandled Rejection:`, error);
+  cleanupServer().then(() => process.exit(1));
 });
 
 startServer();

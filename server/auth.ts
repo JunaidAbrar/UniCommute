@@ -171,14 +171,21 @@ export function setupAuth(app: Express) {
 
   app.post("/api/forgot-password", async (req, res) => {
     const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
-    }
 
     try {
+      if (!email) {
+        return res.status(400).json({
+          message: "Email is required",
+          error: "MISSING_EMAIL"
+        });
+      }
+
       const user = await storage.getUserByEmail(email);
       if (!user) {
-        return res.status(404).json({ message: "User not found" });
+        // Use same message to prevent email enumeration
+        return res.status(200).json({
+          message: "If an account exists with this email, you will receive a password reset code."
+        });
       }
 
       const otp = await generateOTP();
@@ -187,9 +194,15 @@ export function setupAuth(app: Express) {
       await storage.setResetPasswordOTP(user.id, otp, otpExpires);
       await sendPasswordResetOTP(user, otp);
 
-      res.status(200).json({ message: "Password reset code sent to your email" });
+      res.status(200).json({
+        message: "If an account exists with this email, you will receive a password reset code."
+      });
     } catch (error) {
-      res.status(500).json({ message: "Error processing password reset request" });
+      console.error('Forgot password error:', error);
+      res.status(500).json({
+        message: "An error occurred while processing your request. Please try again.",
+        error: "SERVER_ERROR"
+      });
     }
   });
 
@@ -213,22 +226,49 @@ export function setupAuth(app: Express) {
 
   app.post("/api/reset-password", async (req, res) => {
     const { email, otp, newPassword } = req.body;
-    if (!email || !otp || !newPassword) {
-      return res.status(400).json({ message: "Email, reset code, and new password are required" });
-    }
 
     try {
-      const user = await storage.verifyResetPasswordOTP(email, otp);
-      if (!user) {
-        return res.status(400).json({ message: "Invalid or expired reset code" });
+      // Validate required fields
+      if (!email || !otp || !newPassword) {
+        return res.status(400).json({
+          message: "Email, reset code, and new password are required",
+          error: "MISSING_FIELDS"
+        });
       }
 
+      // Validate password length
+      if (newPassword.length < 6) {
+        return res.status(400).json({
+          message: "Password must be at least 6 characters long",
+          error: "INVALID_PASSWORD"
+        });
+      }
+
+      // Verify OTP
+      const user = await storage.verifyResetPasswordOTP(email, otp);
+      if (!user) {
+        return res.status(400).json({
+          message: "Invalid or expired reset code. Please request a new code.",
+          error: "INVALID_OTP"
+        });
+      }
+
+      // Hash and update password
       const hashedPassword = await hashPassword(newPassword);
       await storage.updatePassword(user.id, hashedPassword);
 
-      res.status(200).json({ message: "Password updated successfully" });
+      // Clear any existing sessions for this user
+      await storage.clearUserSessions(user.id);
+
+      res.status(200).json({
+        message: "Password updated successfully. Please log in with your new password."
+      });
     } catch (error) {
-      res.status(500).json({ message: "Error resetting password" });
+      console.error('Password reset error:', error);
+      res.status(500).json({
+        message: "An error occurred while resetting your password. Please try again.",
+        error: "SERVER_ERROR"
+      });
     }
   });
 

@@ -22,6 +22,7 @@ export interface IStorage {
   setResetPasswordOTP(userId: number, otp: string, expires: Date): Promise<void>;
   verifyResetPasswordOTP(email: string, otp: string): Promise<User | undefined>;
   updatePassword(userId: number, newPassword: string): Promise<void>;
+  clearUserSessions(userId: number): Promise<void>; // Added this method
 
   // Ride Operations
   createRide(hostId: number, ride: InsertRide): Promise<Ride>;
