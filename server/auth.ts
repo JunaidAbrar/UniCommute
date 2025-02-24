@@ -75,6 +75,17 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Expose session to WebSocket
+  app.use((req, res, next) => {
+    if (req.url.startsWith('/ws')) {
+      // Store session data in res.locals for WebSocket access
+      res.locals.session = req.session;
+      res.locals.sessionID = req.sessionID;
+      res.locals.user = req.user;
+    }
+    next();
+  });
+
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
@@ -191,8 +202,10 @@ export function setupAuth(app: Express) {
       await storage.setVerificationOTP(user.id, otp, otpExpires);
       await sendPasswordResetOTP(user, otp);
 
+      console.log(`Password reset OTP sent to ${email}`); // Add logging
       res.status(200).json({ message: "Password reset code sent to your email" });
     } catch (error) {
+      console.error('Error in forgot-password:', error); // Add error logging
       res.status(500).json({ message: "Error processing password reset request" });
     }
   });
@@ -229,6 +242,9 @@ export function setupAuth(app: Express) {
 
       const hashedPassword = await hashPassword(newPassword);
       await storage.updatePassword(user.id, hashedPassword);
+
+      // Clear all sessions for this user for security
+      await storage.clearUserSessions(user.id);
 
       res.status(200).json({ message: "Password updated successfully" });
     } catch (error) {

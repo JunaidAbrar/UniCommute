@@ -29,18 +29,25 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
       const cleanSessionID = decodeURIComponent(sessionID.replace(/^s:/, '').split('.')[0]);
       console.log('Clean session ID:', cleanSessionID);
 
-      // Get session data
-      const sessionData: any = await new Promise((resolve, reject) => {
-        storage.sessionStore.get(cleanSessionID, (err, session) => {
-          if (err) {
-            console.error('Session store error:', err);
-            reject(err);
-          } else {
-            console.log('Session data retrieved:', session);
-            resolve(session);
-          }
+      // Get session data with proper error handling
+      let sessionData: any;
+      try {
+        sessionData = await new Promise((resolve, reject) => {
+          storage.sessionStore.get(cleanSessionID, (err, session) => {
+            if (err) {
+              console.error('Session store error:', err);
+              reject(err);
+            } else {
+              console.log('Session data retrieved:', session);
+              resolve(session);
+            }
+          });
         });
-      });
+      } catch (error) {
+        console.error('Failed to retrieve session:', error);
+        ws.close(1008, 'Session retrieval failed');
+        return;
+      }
 
       if (!sessionData || !sessionData.passport?.user) {
         console.log('Invalid session data:', sessionData);
@@ -53,6 +60,12 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
 
       // Initialize client info
       ws.userId = userId;
+      ws.isAlive = true;
+
+      // Setup ping-pong for connection health check
+      ws.on('pong', () => {
+        ws.isAlive = true;
+      });
 
       // Send initial connection success message
       ws.send(JSON.stringify({ type: 'connected', userId }));
@@ -88,11 +101,13 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
 
       ws.on('close', () => {
         console.log(`Client disconnected. UserID: ${userId}`);
+        ws.isAlive = false;
         handleLeave(ws);
       });
 
       ws.on('error', (error) => {
         console.error('WebSocket error:', error);
+        ws.isAlive = false;
         handleLeave(ws);
       });
 
@@ -104,17 +119,21 @@ export function setupWebSocket(wss: WebSocketServer, app: Express) {
     }
   });
 
-  // Add heartbeat to keep connections alive
-  const interval = setInterval(() => {
-    wss.clients.forEach((ws: WebSocket) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.ping();
+  // Enhanced heartbeat to keep connections alive and clean up dead connections
+  const heartbeat = setInterval(() => {
+    wss.clients.forEach((ws: WebSocketClient) => {
+      if (ws.isAlive === false) {
+        console.log(`Terminating inactive connection for user ${ws.userId}`);
+        return ws.terminate();
       }
+
+      ws.isAlive = false;
+      ws.ping();
     });
   }, 30000);
 
   wss.on('close', () => {
-    clearInterval(interval);
+    clearInterval(heartbeat);
   });
 }
 
@@ -233,7 +252,7 @@ function handleLeave(ws: WebSocketClient) {
       if (room.clients.size === 0) {
         rooms.delete(ws.rideId.toString());
       }
-      console.log(`User left ride ${ws.rideId}`);
+      console.log(`User ${ws.userId} left ride ${ws.rideId}`);
     }
   }
 }

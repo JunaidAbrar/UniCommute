@@ -143,13 +143,14 @@ export default function AuthPage() {
       const response = await apiRequest("POST", "/api/forgot-password", { email: data.email });
       const result = await response.json();
       resetPasswordForm.setValue('email', data.email);
+      setVerificationMode('password');
       toast({
         title: "Reset code sent",
         description: result.message,
       });
-      setVerificationMode('password');
-      resetPasswordForm.setValue('otp', ''); // Clear OTP field after sending reset code.
-      //setActiveTab("verify");  // Moved to conditional rendering in the JSX below
+      // Clear OTP and show the OTP input form
+      resetPasswordForm.setValue('otp', '');
+      resetPasswordForm.setValue('newPassword', '');
     } catch (error) {
       toast({
         title: "Error",
