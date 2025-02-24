@@ -140,7 +140,11 @@ export default function AuthPage() {
   const onForgotPassword = async (data: { email: string }) => {
     try {
       setIsResettingPassword(true);
-      const response = await apiRequest("POST", "/api/forgot-password", { email: data.email });
+      const response = await apiRequest("POST", "/api/forgot-password", data);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to send reset code');
+      }
       const result = await response.json();
       resetPasswordForm.setValue('email', data.email);
       toast({
@@ -148,7 +152,6 @@ export default function AuthPage() {
         description: result.message,
       });
       setVerificationMode('password');
-      resetPasswordForm.setValue('otp', '');
     } catch (error) {
       toast({
         title: "Error",
@@ -446,11 +449,13 @@ export default function AuthPage() {
                 ) : (
                   <Form {...resetPasswordForm}>
                     <form
-                      onSubmit={
-                        !resetPasswordForm.getValues("otp") ? 
-                        resetPasswordForm.handleSubmit((data) => onForgotPassword({ email: data.email })) :
-                        resetPasswordForm.handleSubmit(onResetPassword)
-                      }
+                      onSubmit={resetPasswordForm.handleSubmit((data) => {
+                        if (!data.otp) {
+                          onForgotPassword({ email: data.email });
+                        } else {
+                          onResetPassword(data);
+                        }
+                      })}
                       className="space-y-4 mt-4"
                     >
                       {!resetPasswordForm.getValues("otp") ? (
