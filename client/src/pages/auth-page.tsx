@@ -42,10 +42,6 @@ const verifyEmailSchema = z.object({
   otp: z.string().length(6, "Verification code must be 6 digits")
 });
 
-const forgotPasswordSchema = z.object({
-  email: z.string().email("Please enter a valid email address")
-});
-
 const resetPasswordSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   otp: z.string().length(6, "Reset code must be 6 digits"),
@@ -56,10 +52,9 @@ export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("login");
-  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
-  const [resetEmail, setResetEmail] = useState<string | null>(null);
-  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [verifyingOTP, setVerifyingOTP] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [verificationMode, setVerificationMode] = useState<'email' | 'password'>('email');
 
   const loginForm = useForm({
     resolver: zodResolver(loginSchema),
@@ -88,13 +83,6 @@ export default function AuthPage() {
     },
   });
 
-  const forgotPasswordForm = useForm({
-    resolver: zodResolver(forgotPasswordSchema),
-    defaultValues: {
-      email: "",
-    },
-  });
-
   const resetPasswordForm = useForm({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
@@ -112,8 +100,9 @@ export default function AuthPage() {
     try {
       const response = await apiRequest("POST", "/api/register", data);
       const result = await response.json();
-      setRegisteredEmail(data.email);
-      setActiveTab("verify-email");
+      verifyEmailForm.setValue('email', data.email);
+      setVerificationMode('email');
+      setActiveTab("verify");
       toast({
         title: "Registration successful",
         description: result.message,
@@ -148,17 +137,18 @@ export default function AuthPage() {
     }
   };
 
-  const onForgotPassword = async (data: z.infer<typeof forgotPasswordSchema>) => {
+  const onForgotPassword = async (data: z.infer<typeof verifyEmailSchema>) => {
     try {
       setIsResettingPassword(true);
-      const response = await apiRequest("POST", "/api/forgot-password", data);
+      const response = await apiRequest("POST", "/api/forgot-password", { email: data.email });
       const result = await response.json();
-      setResetEmail(data.email);
-      setActiveTab("reset-password");
+      resetPasswordForm.setValue('email', data.email);
       toast({
         title: "Reset code sent",
         description: result.message,
       });
+      setVerificationMode('password');
+      setActiveTab("verify");
     } catch (error) {
       toast({
         title: "Error",
@@ -206,7 +196,7 @@ export default function AuthPage() {
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="register">Register</TabsTrigger>
-                <TabsTrigger value="forgot-password">Reset</TabsTrigger>
+                <TabsTrigger value="verify">Verify</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
@@ -259,6 +249,19 @@ export default function AuthPage() {
                       )}
                       Login
                     </Button>
+
+                    <div className="text-center mt-4">
+                      <button
+                        type="button"
+                        className="text-sm text-primary hover:underline"
+                        onClick={() => {
+                          setVerificationMode('password');
+                          setActiveTab("verify");
+                        }}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                   </form>
                 </Form>
               </TabsContent>
@@ -379,186 +382,140 @@ export default function AuthPage() {
                 </Form>
               </TabsContent>
 
-              <TabsContent value="verify-email">
-                <Form {...verifyEmailForm}>
-                  <form
-                    onSubmit={verifyEmailForm.handleSubmit(onVerifyEmail)}
-                    className="space-y-4 mt-4"
-                  >
-                    <Alert>
-                      <AlertDescription>
-                        Please check your email for the verification code.
-                      </AlertDescription>
-                    </Alert>
-
-                    <FormField
-                      control={verifyEmailForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="email"
-                              value={registeredEmail || ''}
-                              disabled
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={verifyEmailForm.control}
-                      name="otp"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Verification Code</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter 6-digit code"
-                              maxLength={6}
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={verifyingOTP}
+              <TabsContent value="verify">
+                {verificationMode === 'email' ? (
+                  <Form {...verifyEmailForm}>
+                    <form
+                      onSubmit={verifyEmailForm.handleSubmit(onVerifyEmail)}
+                      className="space-y-4 mt-4"
                     >
-                      {verifyingOTP && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Verify Email
-                    </Button>
-                  </form>
-                </Form>
-              </TabsContent>
+                      <Alert>
+                        <AlertDescription>
+                          Please check your email for the verification code.
+                        </AlertDescription>
+                      </Alert>
 
-              <TabsContent value="forgot-password">
-                <Form {...forgotPasswordForm}>
-                  <form
-                    onSubmit={forgotPasswordForm.handleSubmit(onForgotPassword)}
-                    className="space-y-4 mt-4"
-                  >
-                    <FormField
-                      control={forgotPasswordForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="email"
-                              placeholder="Enter your registered email"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={verifyEmailForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="email"
+                                placeholder="Enter your email"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={isResettingPassword}
+                      <FormField
+                        control={verifyEmailForm.control}
+                        name="otp"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Verification Code</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Enter 6-digit code"
+                                maxLength={6}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={verifyingOTP}
+                      >
+                        {verifyingOTP && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Verify Email
+                      </Button>
+                    </form>
+                  </Form>
+                ) : (
+                  <Form {...resetPasswordForm}>
+                    <form
+                      onSubmit={resetPasswordForm.handleSubmit(onResetPassword)}
+                      className="space-y-4 mt-4"
                     >
-                      {isResettingPassword && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Send Reset Code
-                    </Button>
-                  </form>
-                </Form>
-              </TabsContent>
+                      <FormField
+                        control={resetPasswordForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="email"
+                                placeholder="Enter your registered email"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-              <TabsContent value="reset-password">
-                <Form {...resetPasswordForm}>
-                  <form
-                    onSubmit={resetPasswordForm.handleSubmit(onResetPassword)}
-                    className="space-y-4 mt-4"
-                  >
-                    <Alert>
-                      <AlertDescription>
-                        Please check your email for the password reset code.
-                      </AlertDescription>
-                    </Alert>
+                      <FormField
+                        control={resetPasswordForm.control}
+                        name="otp"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Reset Code</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Enter 6-digit code"
+                                maxLength={6}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={resetPasswordForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="email"
-                              value={resetEmail || ''}
-                              disabled
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={resetPasswordForm.control}
+                        name="newPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>New Password</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="password"
+                                placeholder="Enter new password"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={resetPasswordForm.control}
-                      name="otp"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Reset Code</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter 6-digit code"
-                              maxLength={6}
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={resetPasswordForm.control}
-                      name="newPassword"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>New Password</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="password"
-                              placeholder="Enter new password"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={isResettingPassword}
-                    >
-                      {isResettingPassword && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Reset Password
-                    </Button>
-                  </form>
-                </Form>
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={isResettingPassword}
+                      >
+                        {isResettingPassword && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Reset Password
+                      </Button>
+                    </form>
+                  </Form>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>
