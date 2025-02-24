@@ -11,20 +11,18 @@ import {
   Message, InsertMessage
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, not, sql, lt, inArray } from "drizzle-orm"; // Added inArray import
+import { eq, and, not, sql, lt } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 
 const PostgresSessionStore = connectPg(session);
 
-// Update RideWithDetails type to include all required fields
+// Update RideWithDetails type to include estimatedFare
 type RideWithDetails = Omit<Ride, 'participants'> & {
   host: Pick<User, 'username' | 'university'>;
   participants: User[];
-  estimatedFare: number;
-  transportType: string;
-  archivedAt: string | null;
+  estimatedFare: number; // Added estimatedFare
 };
 
 export class DatabaseStorage implements IStorage {
@@ -328,29 +326,10 @@ export class DatabaseStorage implements IStorage {
       );
   }
 
-  // Optimized ride queries with JOIN operations
   async getActiveRides(): Promise<RideWithDetails[]> {
-    const ridesWithUsers = await db
-      .select({
-        id: ridesTable.id,
-        hostId: ridesTable.hostId,
-        origin: ridesTable.origin,
-        destination: ridesTable.destination,
-        departureTime: ridesTable.departureTime,
-        seatsAvailable: ridesTable.seatsAvailable,
-        participants: ridesTable.participants,
-        isActive: ridesTable.isActive,
-        isArchived: ridesTable.isArchived,
-        femaleOnly: ridesTable.femaleOnly,
-        estimatedFare: ridesTable.estimatedFare,
-        stopPoints: ridesTable.stopPoints,
-        transportType: ridesTable.transportType,
-        archivedAt: ridesTable.archivedAt,
-        host_username: users.username,
-        host_university: users.university
-      })
+    const rides = await db
+      .select()
       .from(ridesTable)
-      .innerJoin(users, eq(ridesTable.hostId, users.id))
       .where(
         and(
           eq(ridesTable.isActive, true),
@@ -359,37 +338,36 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(ridesTable.departureTime);
 
-    // Convert Set to Array before iteration
-    const participantIds = Array.from(new Set(ridesWithUsers.flatMap(ride => ride.participants)));
-    const participantUsers = participantIds.length > 0 ? await db
-      .select()
-      .from(users)
-      .where(inArray(users.id, participantIds)) : [];
+    const ridesWithDetails = await Promise.all(
+      rides.map(async (ride) => {
+        const host = await this.getUser(ride.hostId);
+        if (!host) {
+          return null;
+        }
 
-    const participantMap = new Map(participantUsers.map(user => [user.id, user]));
+        const participantUsers = await Promise.all(
+          ride.participants.map(async (id) => {
+            const user = await this.getUser(id);
+            return user || null;
+          })
+        );
 
-    return ridesWithUsers.map(ride => ({
-      id: ride.id,
-      hostId: ride.hostId,
-      origin: ride.origin,
-      destination: ride.destination,
-      departureTime: ride.departureTime,
-      seatsAvailable: ride.seatsAvailable,
-      participants: ride.participants
-        .map(id => participantMap.get(id))
-        .filter((user): user is User => user !== undefined),
-      isActive: ride.isActive,
-      isArchived: ride.isArchived,
-      femaleOnly: ride.femaleOnly,
-      estimatedFare: ride.estimatedFare,
-      stopPoints: ride.stopPoints,
-      transportType: ride.transportType,
-      archivedAt: ride.archivedAt,
-      host: {
-        username: ride.host_username,
-        university: ride.host_university
-      }
-    }));
+        // Filter out null values and assert the type
+        const validParticipants = participantUsers.filter((user): user is User => user !== null);
+
+        return {
+          ...ride,
+          host: {
+            username: host.username,
+            university: host.university
+          },
+          participants: validParticipants
+        };
+      })
+    );
+
+    // Filter out null values from the rides array
+    return ridesWithDetails.filter((ride): ride is RideWithDetails => ride !== null);
   }
 
   async transferRideOwnership(rideId: number, newHostId: number): Promise<Ride> {
@@ -488,71 +466,6 @@ export class DatabaseStorage implements IStorage {
     return newMessage;
   }
 
-  // Similar optimization for archived rides
-  async getArchivedRides(userId: number): Promise<RideWithDetails[]> {
-    const archivedRidesWithUsers = await db
-      .select({
-        id: ridesTable.id,
-        hostId: ridesTable.hostId,
-        origin: ridesTable.origin,
-        destination: ridesTable.destination,
-        departureTime: ridesTable.departureTime,
-        seatsAvailable: ridesTable.seatsAvailable,
-        participants: ridesTable.participants,
-        isActive: ridesTable.isActive,
-        isArchived: ridesTable.isArchived,
-        femaleOnly: ridesTable.femaleOnly,
-        estimatedFare: ridesTable.estimatedFare,
-        stopPoints: ridesTable.stopPoints,
-        transportType: ridesTable.transportType,
-        archivedAt: ridesTable.archivedAt,
-        host_username: users.username,
-        host_university: users.university
-      })
-      .from(ridesTable)
-      .innerJoin(users, eq(ridesTable.hostId, users.id))
-      .where(
-        and(
-          eq(ridesTable.isArchived, true),
-          sql`${ridesTable.participants} @> array[${userId}]::int[]`
-        )
-      )
-      .orderBy(ridesTable.departureTime);
-
-    // Convert Set to Array before iteration
-    const participantIds = Array.from(new Set(archivedRidesWithUsers.flatMap(ride => ride.participants)));
-    const participantUsers = participantIds.length > 0 ? await db
-      .select()
-      .from(users)
-      .where(inArray(users.id, participantIds)) : [];
-
-    const participantMap = new Map(participantUsers.map(user => [user.id, user]));
-
-    return archivedRidesWithUsers.map(ride => ({
-      id: ride.id,
-      hostId: ride.hostId,
-      origin: ride.origin,
-      destination: ride.destination,
-      departureTime: ride.departureTime,
-      seatsAvailable: ride.seatsAvailable,
-      participants: ride.participants
-        .map(id => participantMap.get(id))
-        .filter((user): user is User => user !== undefined),
-      isActive: ride.isActive,
-      isArchived: ride.isArchived,
-      femaleOnly: ride.femaleOnly,
-      estimatedFare: ride.estimatedFare,
-      stopPoints: ride.stopPoints,
-      transportType: ride.transportType,
-      archivedAt: ride.archivedAt,
-      host: {
-        username: ride.host_username,
-        university: ride.host_university
-      }
-    }));
-  }
-
-  // Optimized message query with user data in a single JOIN
   async getMessagesByRide(rideId: number): Promise<Message[]> {
     const messagesWithUsers = await db
       .select({
@@ -572,7 +485,48 @@ export class DatabaseStorage implements IStorage {
 
     return messagesWithUsers;
   }
+  async getArchivedRides(userId: number): Promise<RideWithDetails[]> {
+    const rides = await db
+      .select()
+      .from(ridesTable)
+      .where(
+        and(
+          eq(ridesTable.isArchived, true),
+          sql`${ridesTable.participants} @> array[${userId}]::int[]`
+        )
+      )
+      .orderBy(ridesTable.departureTime);
+
+    const ridesWithDetails = await Promise.all(
+      rides.map(async (ride) => {
+        const host = await this.getUser(ride.hostId);
+        if (!host) throw new Error(`Host not found for ride ${ride.id}`);
+
+        const participantUsers = await Promise.all(
+          ride.participants.map(async (id) => {
+            const user = await this.getUser(id);
+            if (!user) throw new Error(`Participant not found: ${id}`);
+            return user;
+          })
+        );
+
+        const rideWithDetails: RideWithDetails = {
+          ...ride,
+          host: {
+            username: host.username,
+            university: host.university
+          },
+          participants: participantUsers
+        };
+
+        return rideWithDetails;
+      })
+    );
+
+    return ridesWithDetails;
+  }
   async clearUserSessions(userId: number): Promise<void> {
+    // Using drizzle-orm's sql template literal for safe SQL injection
     await db.execute(
       sql`DELETE FROM session WHERE sess->>'passport'->>'user' = ${userId.toString()}`
     );
