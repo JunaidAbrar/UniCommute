@@ -35,6 +35,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
+// Form schemas
 const loginSchema = insertUserSchema.pick({ username: true, password: true });
 
 const verifyEmailSchema = z.object({
@@ -141,6 +142,7 @@ export default function AuthPage() {
   const onForgotPassword = async (data: { email: string }) => {
     try {
       setIsResettingPassword(true);
+      console.log("Sending reset code request:", data);
       const response = await apiRequest("POST", "/api/forgot-password", data);
       const result = await response.json();
 
@@ -155,6 +157,7 @@ export default function AuthPage() {
         description: result.message,
       });
     } catch (error) {
+      console.error("Reset code error:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to send reset code",
@@ -267,6 +270,7 @@ export default function AuthPage() {
                         className="text-sm text-primary hover:underline"
                         onClick={() => {
                           setVerificationMode('password');
+                          setShowResetOTP(false);
                           setActiveTab("verify");
                         }}
                       >
@@ -307,14 +311,11 @@ export default function AuthPage() {
                             <FormControl>
                               <Input
                                 type="email"
-                                placeholder="Enter your BRAC University email"
+                                placeholder="Enter your email"
                                 {...field}
                               />
                             </FormControl>
                             <FormMessage />
-                            <p className="text-xs text-muted-foreground">
-                              Only @g.bracu.ac.bd or @bracu.ac.bd email addresses are allowed
-                            </p>
                           </FormItem>
                         )}
                       />
