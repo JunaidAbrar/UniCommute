@@ -148,7 +148,8 @@ export default function AuthPage() {
         description: result.message,
       });
       setVerificationMode('password');
-      setActiveTab("verify");
+      resetPasswordForm.setValue('otp', ''); // Clear OTP field after sending reset code.
+      //setActiveTab("verify");  // Moved to conditional rendering in the JSX below
     } catch (error) {
       toast({
         title: "Error",
@@ -446,73 +447,104 @@ export default function AuthPage() {
                 ) : (
                   <Form {...resetPasswordForm}>
                     <form
-                      onSubmit={resetPasswordForm.handleSubmit(onResetPassword)}
+                      onSubmit={!resetPasswordForm.getValues("otp") ? 
+                        resetPasswordForm.handleSubmit(onForgotPassword) :
+                        resetPasswordForm.handleSubmit(onResetPassword)}
                       className="space-y-4 mt-4"
                     >
-                      <FormField
-                        control={resetPasswordForm.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Email</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="email"
-                                placeholder="Enter your registered email"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      {!resetPasswordForm.getValues("otp") ? (
+                        <>
+                          <Alert>
+                            <AlertDescription>
+                              Enter your email to receive a password reset code.
+                            </AlertDescription>
+                          </Alert>
 
-                      <FormField
-                        control={resetPasswordForm.control}
-                        name="otp"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Reset Code</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Enter 6-digit code"
-                                maxLength={6}
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                          <FormField
+                            control={resetPasswordForm.control}
+                            name="email"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Email</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="email"
+                                    placeholder="Enter your registered email"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
 
-                      <FormField
-                        control={resetPasswordForm.control}
-                        name="newPassword"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>New Password</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="password"
-                                placeholder="Enter new password"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                          <Button
+                            type="submit"
+                            className="w-full"
+                            disabled={isResettingPassword}
+                          >
+                            {isResettingPassword && (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            Send Reset Code
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Alert>
+                            <AlertDescription>
+                              Enter the reset code sent to your email and choose a new password.
+                            </AlertDescription>
+                          </Alert>
 
-                      <Button
-                        type="submit"
-                        className="w-full"
-                        disabled={isResettingPassword}
-                      >
-                        {isResettingPassword && (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        )}
-                        Reset Password
-                      </Button>
+                          <FormField
+                            control={resetPasswordForm.control}
+                            name="otp"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Reset Code</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="Enter 6-digit code"
+                                    maxLength={6}
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={resetPasswordForm.control}
+                            name="newPassword"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>New Password</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="password"
+                                    placeholder="Enter new password"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <Button
+                            type="submit"
+                            className="w-full"
+                            disabled={isResettingPassword}
+                          >
+                            {isResettingPassword && (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            Reset Password
+                          </Button>
+                        </>
+                      )}
                     </form>
                   </Form>
                 )}
