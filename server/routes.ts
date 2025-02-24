@@ -6,8 +6,56 @@ import { generateToken, sendPasswordResetEmail } from "./email";
 import { insertRideSchema, insertRequestSchema, insertMessageSchema } from "@shared/schema";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
+import { log } from "./vite";
 
 const scryptAsync = promisify(scrypt);
+
+// Simple in-memory cache for ride data
+const cache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 30 * 1000; // 30 seconds cache
+
+function getCachedData(key: string) {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    log(`Cache hit for ${key}`);
+    return cached.data;
+  }
+  log(`Cache miss for ${key}`);
+  return null;
+}
+
+function setCachedData(key: string, data: any) {
+  cache.set(key, { data, timestamp: Date.now() });
+  log(`Cache set for ${key} at ${new Date().toISOString()}`);
+}
+
+function clearRideCache() {
+  const keysToDelete = [];
+  for (const key of Array.from(cache.keys())) {
+    if (key.startsWith('ride:')) {
+      keysToDelete.push(key);
+    }
+  }
+  keysToDelete.forEach(key => {
+    cache.delete(key);
+    log(`Cache cleared for ${key} at ${new Date().toISOString()}`);
+  });
+}
+
+// Utility function to measure execution time
+async function measureExecutionTime<T>(operation: () => Promise<T>, operationName: string): Promise<[T, number]> {
+  const start = Date.now();
+  try {
+    const result = await operation();
+    const duration = Date.now() - start;
+    log(`${operationName} completed in ${duration}ms`);
+    return [result, duration];
+  } catch (error) {
+    const duration = Date.now() - start;
+    log(`${operationName} failed after ${duration}ms: ${error}`);
+    throw error;
+  }
+}
 
 export async function setupRoutes(app: Express): Promise<Server> {
   setupAuth(app);
@@ -85,20 +133,59 @@ export async function setupRoutes(app: Express): Promise<Server> {
   // Set up periodic check for rides that need to be archived (every 5 minutes)
   setInterval(async () => {
     try {
-      await storage.autoArchiveExpiredRides();
+      await measureExecutionTime(
+        () => storage.autoArchiveExpiredRides(),
+        "Auto-archive expired rides"
+      );
     } catch (error) {
-      console.error("Error auto-archiving rides:", error);
+      log("Error auto-archiving rides:", error);
     }
   }, 5 * 60 * 1000);
 
   // Rides
+  app.get("/api/rides", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    const cacheKey = 'rides:active';
+    const cachedRides = getCachedData(cacheKey);
+
+    if (cachedRides) {
+      return res.json(cachedRides);
+    }
+
+    try {
+      const [rides] = await measureExecutionTime(
+        () => storage.getActiveRides(),
+        "Fetch active rides"
+      );
+
+      // Validate rides data before caching
+      if (Array.isArray(rides) && rides.every(ride =>
+        ride.id &&
+        ride.hostId &&
+        ride.participants &&
+        ride.host?.username
+      )) {
+        setCachedData(cacheKey, rides);
+        res.json(rides);
+      } else {
+        log("Invalid rides data structure:", rides);
+        throw new Error("Invalid rides data structure");
+      }
+    } catch (error) {
+      log("Error fetching rides:", error);
+      res.status(500).json({
+        message: "Error fetching rides"
+      });
+    }
+  });
+
   app.post("/api/rides", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     const parseResult = insertRideSchema.safeParse(req.body);
     if (!parseResult.success) return res.status(400).json(parseResult.error);
 
-    // Validate seats available
     if (parseResult.data.seatsAvailable < 1) {
       return res.status(400).json({
         message: "Number of available seats must be at least 1"
@@ -106,20 +193,17 @@ export async function setupRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const ride = await storage.createRide(req.user.id, parseResult.data);
-      const rides = await storage.getActiveRides();
-      res.status(201).json({ ride, rides });
+      const [ride] = await measureExecutionTime(
+        () => storage.createRide(req.user.id, parseResult.data),
+        "Create ride"
+      );
+      clearRideCache(); // Clear cache when ride is created
+      res.status(201).json({ ride });
     } catch (error) {
-      res.status(400).json({ 
-        message: error instanceof Error ? error.message : "Failed to create ride" 
+      res.status(400).json({
+        message: error instanceof Error ? error.message : "Failed to create ride"
       });
     }
-  });
-
-  app.get("/api/rides", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const rides = await storage.getActiveRides();
-    res.json(rides);
   });
 
   // Modified delete route to handle archiving
@@ -127,7 +211,11 @@ export async function setupRoutes(app: Express): Promise<Server> {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
-      await storage.deleteRide(parseInt(req.params.id), req.user.id);
+      await measureExecutionTime(
+        () => storage.deleteRide(parseInt(req.params.id), req.user.id),
+        "Delete ride"
+      );
+      clearRideCache();
       res.sendStatus(200);
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Failed to archive ride" });
@@ -138,7 +226,10 @@ export async function setupRoutes(app: Express): Promise<Server> {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
-      const ride = await storage.getRide(parseInt(req.params.id));
+      const [ride] = await measureExecutionTime(
+        () => storage.getRide(parseInt(req.params.id)),
+        "Get ride"
+      );
       if (!ride) throw new Error("Ride not found");
 
       // Only allow leaving if user is a participant but not the host
@@ -149,11 +240,15 @@ export async function setupRoutes(app: Express): Promise<Server> {
         throw new Error("As the host, you cannot leave the ride. You can delete it instead.");
       }
 
-      const updatedRide = await storage.removeParticipant(ride.id, req.user.id);
+      const [updatedRide] = await measureExecutionTime(
+        () => storage.removeParticipant(ride.id, req.user.id),
+        "Remove participant"
+      );
+      clearRideCache();
       res.json(updatedRide);
     } catch (error) {
-      res.status(400).json({ 
-        message: error instanceof Error ? error.message : "Failed to leave ride" 
+      res.status(400).json({
+        message: error instanceof Error ? error.message : "Failed to leave ride"
       });
     }
   });
@@ -166,19 +261,29 @@ export async function setupRoutes(app: Express): Promise<Server> {
     if (!parseResult.success) return res.status(400).json(parseResult.error);
 
     try {
-      const request = await storage.createRequest(req.user.id, parseResult.data);
-      const ride = await storage.addParticipant(request.rideId, req.user.id);
+      const [request, ride] = await measureExecutionTime(
+        async () => {
+          const request = await storage.createRequest(req.user.id, parseResult.data);
+          const ride = await storage.addParticipant(request.rideId, req.user.id);
+          return [request, ride];
+        },
+        "Create request and add participant"
+      );
+      clearRideCache();
       res.status(201).json({ request, ride });
     } catch (error) {
-      res.status(400).json({ 
-        message: error instanceof Error ? error.message : "Failed to join ride" 
+      res.status(400).json({
+        message: error instanceof Error ? error.message : "Failed to join ride"
       });
     }
   });
 
   app.get("/api/rides/:rideId/requests", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const requests = await storage.getRequestsByRide(parseInt(req.params.rideId));
+    const [requests] = await measureExecutionTime(
+      () => storage.getRequestsByRide(parseInt(req.params.rideId)),
+      "Get requests by ride"
+    );
     res.json(requests);
   });
 
@@ -186,12 +291,46 @@ export async function setupRoutes(app: Express): Promise<Server> {
   app.get("/api/rides/:rideId/messages", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
     try {
-      const messages = await storage.getMessagesByRide(parseInt(req.params.rideId));
-      res.json(messages);
+      const [messages, executionTime] = await measureExecutionTime(
+        () => storage.getMessagesByRide(parseInt(req.params.rideId)),
+        "Fetch ride messages"
+      );
+
+      // Validate messages before sending
+      if (Array.isArray(messages) && messages.every(msg =>
+        msg.id &&
+        msg.userId &&
+        msg.content &&
+        msg.timestamp
+      )) {
+        const paginatedMessages = messages.slice(offset, offset + limit);
+
+        res.json({
+          messages: paginatedMessages,
+          pagination: {
+            total: messages.length,
+            page,
+            limit,
+            totalPages: Math.ceil(messages.length / limit)
+          },
+          performance: {
+            executionTime,
+            timestamp: new Date().toISOString()
+          }
+        });
+      } else {
+        log("Invalid messages data structure:", messages);
+        throw new Error("Invalid messages data structure");
+      }
     } catch (error) {
-      res.status(400).json({ 
-        message: error instanceof Error ? error.message : "Failed to fetch messages" 
+      log("Error fetching messages:", error);
+      res.status(500).json({
+        message: "Error fetching messages"
       });
     }
   });
@@ -209,11 +348,15 @@ export async function setupRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const message = await storage.createMessage(req.user.id, parseResult.data);
+      const [message] = await measureExecutionTime(
+        () => storage.createMessage(req.user.id, parseResult.data),
+        "Create message"
+      );
+      clearRideCache();
       res.status(201).json(message);
     } catch (error) {
-      res.status(400).json({ 
-        message: error instanceof Error ? error.message : "Failed to send message" 
+      res.status(400).json({
+        message: error instanceof Error ? error.message : "Failed to send message"
       });
     }
   });
@@ -226,7 +369,10 @@ export async function setupRoutes(app: Express): Promise<Server> {
     const userIdToKick = parseInt(req.params.userId);
 
     try {
-      const ride = await storage.getRide(rideId);
+      const [ride] = await measureExecutionTime(
+        () => storage.getRide(rideId),
+        "Get ride for kicking member"
+      );
       if (!ride) throw new Error("Ride not found");
 
       // Only ride host can kick members
@@ -244,11 +390,15 @@ export async function setupRoutes(app: Express): Promise<Server> {
         throw new Error("User is not a participant in this ride");
       }
 
-      const updatedRide = await storage.removeParticipant(rideId, userIdToKick);
+      const [updatedRide] = await measureExecutionTime(
+        () => storage.removeParticipant(rideId, userIdToKick),
+        "Remove participant (kick member)"
+      );
+      clearRideCache();
       res.json(updatedRide);
     } catch (error) {
-      res.status(400).json({ 
-        message: error instanceof Error ? error.message : "Failed to remove member" 
+      res.status(400).json({
+        message: error instanceof Error ? error.message : "Failed to remove member"
       });
     }
   });
@@ -258,7 +408,10 @@ export async function setupRoutes(app: Express): Promise<Server> {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
-      const archivedRides = await storage.getArchivedRides(req.user.id);
+      const [archivedRides] = await measureExecutionTime(
+        () => storage.getArchivedRides(req.user.id),
+        "Get archived rides"
+      );
       res.json(archivedRides);
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "Failed to fetch archived rides" });
