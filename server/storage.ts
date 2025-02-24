@@ -294,7 +294,6 @@ export class DatabaseStorage implements IStorage {
       );
   }
 
-
   async getActiveRides(): Promise<RideWithDetails[]> {
     const rides = await db
       .select()
@@ -310,28 +309,25 @@ export class DatabaseStorage implements IStorage {
     const ridesWithDetails = await Promise.all(
       rides.map(async (ride) => {
         const host = await this.getUser(ride.hostId);
-        if (!host) throw new Error(`Host not found for ride ${ride.id}`);
+        if (!host) {
+          // If host not found, skip this ride instead of throwing error
+          console.warn(`Host not found for ride ${ride.id}, skipping`);
+          return null;
+        }
 
         const participantUsers = await Promise.all(
           ride.participants.map(async (id) => {
             const user = await this.getUser(id);
-            if (!user) throw new Error(`Participant not found: ${id}`);
+            if (!user) {
+              console.warn(`Participant not found: ${id}, skipping`);
+              return null;
+            }
             return user;
           })
-        );
+        ).then(users => users.filter(Boolean)); // Remove null values
 
         const rideWithDetails: RideWithDetails = {
-          id: ride.id,
-          hostId: ride.hostId,
-          origin: ride.origin,
-          destination: ride.destination,
-          stopPoints: ride.stopPoints,
-          departureTime: ride.departureTime,
-          transportType: ride.transportType,
-          seatsAvailable: ride.seatsAvailable,
-          femaleOnly: ride.femaleOnly,
-          isActive: ride.isActive,
-          estimatedFare: ride.estimatedFare,
+          ...ride,
           host: {
             username: host.username,
             university: host.university
@@ -341,7 +337,7 @@ export class DatabaseStorage implements IStorage {
 
         return rideWithDetails;
       })
-    );
+    ).then(rides => rides.filter(Boolean)); // Remove null values
 
     return ridesWithDetails;
   }
@@ -461,7 +457,7 @@ export class DatabaseStorage implements IStorage {
 
     return messagesWithUsers;
   }
-    async getArchivedRides(userId: number): Promise<RideWithDetails[]> {
+  async getArchivedRides(userId: number): Promise<RideWithDetails[]> {
     const rides = await db
       .select()
       .from(ridesTable)
