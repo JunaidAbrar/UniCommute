@@ -137,7 +137,7 @@ export default function AuthPage() {
     }
   };
 
-  const onForgotPassword = async (data: z.infer<typeof verifyEmailSchema>) => {
+  const onForgotPassword = async (data: { email: string }) => {
     try {
       setIsResettingPassword(true);
       const response = await apiRequest("POST", "/api/forgot-password", { email: data.email });
@@ -148,8 +148,7 @@ export default function AuthPage() {
         description: result.message,
       });
       setVerificationMode('password');
-      resetPasswordForm.setValue('otp', ''); // Clear OTP field after sending reset code.
-      //setActiveTab("verify");  // Moved to conditional rendering in the JSX below
+      resetPasswordForm.setValue('otp', '');
     } catch (error) {
       toast({
         title: "Error",
@@ -447,9 +446,11 @@ export default function AuthPage() {
                 ) : (
                   <Form {...resetPasswordForm}>
                     <form
-                      onSubmit={!resetPasswordForm.getValues("otp") ? 
-                        resetPasswordForm.handleSubmit(onForgotPassword) :
-                        resetPasswordForm.handleSubmit(onResetPassword)}
+                      onSubmit={
+                        !resetPasswordForm.getValues("otp") ? 
+                        resetPasswordForm.handleSubmit((data) => onForgotPassword({ email: data.email })) :
+                        resetPasswordForm.handleSubmit(onResetPassword)
+                      }
                       className="space-y-4 mt-4"
                     >
                       {!resetPasswordForm.getValues("otp") ? (
