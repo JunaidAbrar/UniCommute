@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, real, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -15,38 +15,71 @@ export const users = pgTable("users", {
 export const transportType = z.enum(["PERSONAL", "UBER", "CNG"]);
 export type TransportType = z.infer<typeof transportType>;
 
-export const rides = pgTable("rides", {
-  id: serial("id").primaryKey(),
-  hostId: integer("host_id").notNull(),
-  origin: text("origin").notNull(),
-  destination: text("destination").notNull(),
-  stopPoints: text("stop_points").array().notNull().default([]),
-  departureTime: timestamp("departure_time", { mode: 'string' }).notNull(),
-  transportType: text("transport_type").notNull(),
-  seatsAvailable: integer("seats_available").notNull(),
-  isActive: boolean("is_active").notNull().default(true),
-  participants: integer("participants").array().notNull().default([]),
-  femaleOnly: boolean("female_only").notNull().default(false),
-  estimatedFare: real("estimated_fare").notNull().default(0)
-});
+export const rides = pgTable(
+  "rides",
+  {
+    id: serial("id").primaryKey(),
+    hostId: integer("host_id")
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }), 
+    origin: text("origin").notNull(),
+    destination: text("destination").notNull(),
+    stopPoints: text("stop_points").array().notNull().default([]),
+    departureTime: timestamp("departure_time", { mode: 'string' }).notNull(),
+    transportType: text("transport_type").notNull(),
+    seatsAvailable: integer("seats_available").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    participants: integer("participants").array().notNull().default([]),
+    femaleOnly: boolean("female_only").notNull().default(false),
+    estimatedFare: real("estimated_fare").notNull().default(0)
+  },
+  (table) => ({
+    hostIdIdx: index("host_id_idx").on(table.hostId),
+    departureTimeIdx: index("departure_time_idx").on(table.departureTime),
+    isActiveIdx: index("is_active_idx").on(table.isActive)
+  })
+);
 
-export const requests = pgTable("requests", {
-  id: serial("id").primaryKey(),
-  rideId: integer("ride_id").notNull(),
-  userId: integer("user_id").notNull(),
-  status: text("status").notNull(),
-  createdAt: timestamp("created_at", { mode: 'string' }).notNull().defaultNow()
-});
+export const requests = pgTable(
+  "requests",
+  {
+    id: serial("id").primaryKey(),
+    rideId: integer("ride_id")
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }), 
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }), 
+    status: text("status").notNull(),
+    createdAt: timestamp("created_at", { mode: 'string' }).notNull().defaultNow()
+  },
+  (table) => ({
+    rideIdIdx: index("requests_ride_id_idx").on(table.rideId),
+    userIdIdx: index("requests_user_id_idx").on(table.userId)
+  })
+);
 
-export const messages = pgTable("messages", {
-  id: serial("id").primaryKey(),
-  rideId: integer("ride_id").notNull(),
-  userId: integer("user_id").notNull(),
-  content: text("content").notNull(),
-  timestamp: timestamp("timestamp", { mode: 'string' }).notNull().defaultNow(),
-  type: text("type").notNull().default('text'),
-  attachment: text("attachment")
-});
+export const messages = pgTable(
+  "messages",
+  {
+    id: serial("id").primaryKey(),
+    rideId: integer("ride_id")
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }), 
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }), 
+    content: text("content").notNull(),
+    timestamp: timestamp("timestamp", { mode: 'string' }).notNull().defaultNow(),
+    type: text("type").notNull().default('text'),
+    attachment: text("attachment")
+  },
+  (table) => ({
+    rideIdIdx: index("messages_ride_id_idx").on(table.rideId),
+    userIdIdx: index("messages_user_id_idx").on(table.userId),
+    timestampIdx: index("messages_timestamp_idx").on(table.timestamp)
+  })
+);
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,

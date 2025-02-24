@@ -2,6 +2,13 @@ import { User, InsertUser, Ride, InsertRide, Request, InsertRequest, Message, In
 import type { Store } from "express-session";
 import { WebSocket } from 'ws';
 
+// Define RideWithDetails type
+export type RideWithDetails = Omit<Ride, 'participants'> & {
+  host: Pick<User, 'username' | 'university'>;
+  participants: User[];
+  estimatedFare: number;
+};
+
 export interface IStorage {
   sessionStore: Store;
 
@@ -14,7 +21,7 @@ export interface IStorage {
   createRide(hostId: number, ride: InsertRide): Promise<Ride>;
   getRide(id: number): Promise<Ride | undefined>;
   getRideWithHost(id: number): Promise<(Ride & { host: User }) | undefined>;
-  getActiveRides(): Promise<(Ride & { host: User })[]>;
+  getActiveRides(): Promise<RideWithDetails[]>;
 
   // Request Operations
   createRequest(userId: number, request: InsertRequest): Promise<Request>;

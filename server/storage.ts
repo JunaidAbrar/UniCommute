@@ -1,7 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
-import { storage } from "./storage";
 import { insertRideSchema, insertRequestSchema, insertMessageSchema } from "@shared/schema";
 import { IStorage } from "./types";
 import {
@@ -55,6 +54,7 @@ export class DatabaseStorage implements IStorage {
 
   // Ride Operations
   async hasActiveRide(userId: number): Promise<boolean> {
+    // Improved to only check for active rides
     const activeRides = await db
       .select()
       .from(ridesTable)
@@ -68,18 +68,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRide(hostId: number, ride: InsertRide): Promise<Ride> {
-    // First check for existing active rides
+    // First verify the host exists
+    const host = await this.getUser(hostId);
+    if (!host) {
+      throw new Error("Host user not found");
+    }
+
+    // Check for existing active rides
     const hasActive = await this.hasActiveRide(hostId);
     if (hasActive) {
       throw new Error("You already have an active ride. Complete or cancel your existing ride first.");
     }
 
     // Check if it's a female-only ride
-    if (ride.femaleOnly) {
-      const host = await this.getUser(hostId);
-      if (!host || host.gender !== 'female') {
-        throw new Error("Only female users can create female-only rides");
-      }
+    if (ride.femaleOnly && host.gender !== 'female') {
+      throw new Error("Only female users can create female-only rides");
+    }
+
+    // Validate departure time is in the future
+    const departureTime = new Date(ride.departureTime);
+    if (departureTime < new Date()) {
+      throw new Error("Departure time must be in the future");
     }
 
     // Convert departureTime to ISO string if it's a Date object
@@ -111,7 +120,14 @@ export class DatabaseStorage implements IStorage {
     if (!ride) return undefined;
 
     const host = await this.getUser(ride.hostId);
-    if (!host) return undefined;
+    if (!host) {
+      // If host not found, we should mark the ride as inactive
+      await db
+        .update(ridesTable)
+        .set({ isActive: false })
+        .where(eq(ridesTable.id, id));
+      return undefined;
+    }
 
     return { ...ride, host };
   }
