@@ -4,12 +4,11 @@ import { ChatMessage, WebSocketClient, ChatRoom } from './types';
 import * as crypto from 'crypto';
 import { parse as parseCookie } from 'cookie';
 import { IncomingMessage } from 'http';
-import type { Express } from 'express';
 import { WebSocket } from 'ws';
 
 const rooms = new Map<string, ChatRoom>();
 
-export function setupWebSocket(wss: WebSocketServer, app: Express) {
+export function setupWebSocket(wss: WebSocketServer) {
   wss.on('connection', async (ws: WebSocket, req: IncomingMessage) => {
     try {
       // Cast ws to WebSocketClient and initialize properties
